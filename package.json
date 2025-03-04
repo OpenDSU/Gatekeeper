@@ -1,0 +1,22 @@
+{
+  "name": "AuthManager",
+  "version": "v1.0.0",
+  "description": "",
+  "scripts": {
+    "dev-install": "node ./bin/mkDevEnv.js && npm install",
+    "postinstall": "node ./node_modules/octopus/scripts/setEnv --file=../../../env.json \"npm run do-install\""
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AssistOS-AI/Authentication-manager.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/AssistOS-AI/Authentication-manager.git/issues"
+  },
+  "homepage": "https://github.com/AssistOS-AI/Authentication-manager.git#readme",
+  "dependencies": {
+    "@sendgrid/mail": "8.1.3"
+  }
+}
