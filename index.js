@@ -1,8 +1,8 @@
 const path = require("path");
-const {accountExists, walletLogin} = require("./handlers/auth");
+const {accountExists, walletLogin, getAccount, updateAccount} = require("./handlers/auth");
 const logger = $$.getLogger("index", "apis");
 const process = require("process");
-const config = require("./config.js");
+const config = require("./config.json");
 const API_URL = config.API_URL
 
 function requestBodyJSONMiddleware(request, response, next) {
@@ -28,7 +28,6 @@ module.exports = function (server) {
 
     const {getAuthenticationMiddleware} = require("./middlewares");
     const {generateAuthCode, walletLogin, walletLogout} = require("./handlers/auth");
-   // const {getWalletData, getOutfinityGiftPoints} = require("./handlers/wallet");
     const {getCookies, getEnclaveInstance, interfaceDefinition} = require("./apiutils/utils");
     const {AUTH_CODES_TABLE} = require("./tables");
     const urlPrefix = "/coreClient";
@@ -79,6 +78,9 @@ module.exports = function (server) {
 
     server.get(`${API_URL}/accountExists/:email`, accountExists);
 
+    server.get(`${API_URL}/account/:email`, getAccount);
 
+    server.put(`${API_URL}/account/:email`, requestBodyJSONMiddleware);
+    server.put(`${API_URL}/account/:email`, updateAccount);
 
 }

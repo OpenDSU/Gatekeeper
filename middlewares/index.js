@@ -3,7 +3,7 @@ const {getCookies, getEnclaveInstance} = require("../apiutils/utils");
 function getAuthenticationMiddleware(server) {
     const BASE_PATH = process.env.BASE_URL;
     const apihub = require("apihub");
-    const skipAuthorisation = ["generateAuthCode", "walletLogin", "accountExists"];
+    const skipAuthorisation = ["generateAuthCode", "walletLogin", "accountExists", "getAccount", "updateAccount"];
     server.use(`${BASE_PATH}/*`, async (req, res, next) => {
         // Exclude specific routes
         const containsSubstring = skipAuthorisation.some(substring => req.url.indexOf(substring) !== -1);

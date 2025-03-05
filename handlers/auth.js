@@ -12,7 +12,7 @@ const {getVersionlessSSI, getEnclaveInstance, generateRandomCode, validateEmail,
 
 
 const OUTFINITY_FAME_LOCK_KEY_ID = "outfinityFameLockKey";
-const config = require("./../config.js");
+const config = require("../config.json");
 sgMail.setApiKey(config.SENDGRID_API_KEY);
 const senderEmail = config.SENDGRID_SENDER_EMAIL;     // Change to your verified sender from sendgrid
 
@@ -282,6 +282,44 @@ const walletLogout = async (req, res) => {
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({operation: "success"}));
 }
+
+const getAccount = async (req, res) => {
+    try {
+        let {email} = req.params;
+        email = decodeURIComponent(email);
+        validateEmail(email);
+        const enclaveInstance = await getEnclaveInstance();
+        let user = await $$.promisify(enclaveInstance.getRecord)($$.SYSTEM_IDENTIFIER, AUTH_CODES_TABLE, email);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify(user));
+    } catch (e) {
+        logger.debug(e.message);
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: e.message}));
+    }
+
+}
+const updateAccount = async (req, res) => {
+    try {
+        let {email} = req.params;
+        let {data} = req.body;
+        email = decodeURIComponent(email);
+        validateEmail(email);
+        const enclaveInstance = await getEnclaveInstance();
+        await $$.promisify(enclaveInstance.updateRecord)($$.SYSTEM_IDENTIFIER, AUTH_CODES_TABLE, email, data);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({operation: "success"}));
+    } catch (e) {
+        logger.debug(e.message);
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: e.message}));
+    }
+}
 module.exports = {
-    generateAuthCode, walletLogin, walletLogout, accountExists
+    generateAuthCode,
+    walletLogin,
+    walletLogout,
+    accountExists,
+    getAccount,
+    updateAccount
 }
