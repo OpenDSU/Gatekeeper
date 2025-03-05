@@ -1,0 +1,6 @@
+{
+    "SENDGRID_API_KEY": "",
+    "SENDGRID_SENDER_EMAIL": "support@outfinitygift.com",
+    "API_URL": "/auth",
+    "SPECIFIC_CORE_LOGIC_PATH": "assistos/assistosSpecificLogic.js"
+}

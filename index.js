@@ -2,8 +2,8 @@ const path = require("path");
 const {accountExists, walletLogin} = require("./handlers/auth");
 const logger = $$.getLogger("index", "apis");
 const process = require("process");
-const API_URL = process.env.API_URL //example "/hatefinity-api"
-const CORE_PATH = process.env.CORE_PATH //example HatefinityCoreInitialisation.js
+const config = require("./config.js");
+const API_URL = config.API_URL
 
 function requestBodyJSONMiddleware(request, response, next) {
     let data = "";
@@ -26,13 +26,13 @@ module.exports = function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
     process.env.LOGS_FOLDER = path.join(server.rootFolder, "external-volume", "hatefinity-logs");
 
-    const {getAuthenticationMiddleware} = require("../middlewares");
+    const {getAuthenticationMiddleware} = require("./middlewares");
     const {generateAuthCode, walletLogin, walletLogout} = require("./handlers/auth");
-    const {getWalletData, getOutfinityGiftPoints} = require("./handlers/wallet");
-    const {getCookies, getEnclaveInstance, interfaceDefinition} = require("../apiutils/utils");
+   // const {getWalletData, getOutfinityGiftPoints} = require("./handlers/wallet");
+    const {getCookies, getEnclaveInstance, interfaceDefinition} = require("./apiutils/utils");
     const {AUTH_CODES_TABLE} = require("./tables");
     const urlPrefix = "/coreClient";
-    const corePath = path.join(server.rootFolder, `./apiutils/${CORE_PATH}`);
+    const corePath =`../Authentication-manager/apiutils/CoreInitialisation.js`;
     const serverlessAPI = server.createServerlessAPI({urlPrefix, corePath});
     const serverUrl = serverlessAPI.getUrl();
     const serverlessAPIProxy = server.createServerlessAPIProxy(serverUrl);

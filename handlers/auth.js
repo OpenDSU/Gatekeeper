@@ -12,9 +12,9 @@ const {getVersionlessSSI, getEnclaveInstance, generateRandomCode, validateEmail,
 
 
 const OUTFINITY_FAME_LOCK_KEY_ID = "outfinityFameLockKey";
-
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-const senderEmail = process.env.SENDGRID_SENDER_EMAIL;     // Change to your verified sender from sendgrid
+const config = require("./../config.js");
+sgMail.setApiKey(config.SENDGRID_API_KEY);
+const senderEmail = config.SENDGRID_SENDER_EMAIL;     // Change to your verified sender from sendgrid
 
 const accountExists = async function (req, res) {
     let response;

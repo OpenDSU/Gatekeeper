@@ -1,7 +1,7 @@
 const {getCookies, getEnclaveInstance} = require("../apiutils/utils");
 
 function getAuthenticationMiddleware(server) {
-    const BASE_PATH = "/hatefinity-api";
+    const BASE_PATH = process.env.BASE_URL;
     const apihub = require("apihub");
     const skipAuthorisation = ["generateAuthCode", "walletLogin", "accountExists"];
     server.use(`${BASE_PATH}/*`, async (req, res, next) => {
