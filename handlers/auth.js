@@ -258,7 +258,7 @@ const walletLogin = async (req, res) => {
                 req.servelessClients[result.id] = client;
             }
             await req.servelessClients[result.id].loginEvent(result.id, "SUCCESS");
-            res.setHeader('Set-Cookie', [`wallet_token=${result.wallet_token}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}`, `email=${loginData.email}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}`, `userId=${result.id}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}`]);
+            res.setHeader('Set-Cookie', [`wallet_token=${result.wallet_token}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`, `email=${loginData.email}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`, `userId=${result.id}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`]);
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({operation: "success"}));
         } else {

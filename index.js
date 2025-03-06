@@ -26,7 +26,7 @@ module.exports = function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
     process.env.LOGS_FOLDER = path.join(server.rootFolder, "external-volume", "hatefinity-logs");
 
-    const {getAuthenticationMiddleware} = require("./middlewares");
+    const {authenticationMiddleware} = require("./middlewares");
     const {generateAuthCode, walletLogin, walletLogout} = require("./handlers/auth");
     const {getCookies, getEnclaveInstance, interfaceDefinition} = require("./apiutils/utils");
     const {AUTH_CODES_TABLE} = require("./tables");
@@ -65,8 +65,7 @@ module.exports = function (server) {
         next()
     })
 
-    getAuthenticationMiddleware(server);
-
+    server.use(`${API_URL}/*`, authenticationMiddleware);
 
     server.post(`${API_URL}/generateAuthCode`, requestBodyJSONMiddleware);
     server.post(`${API_URL}/generateAuthCode`, generateAuthCode);
