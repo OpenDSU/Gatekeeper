@@ -2,7 +2,7 @@ const enclave = require("opendsu").loadAPI("enclave");
 
 function LightDBEnclaveFactory() {
     let instances = {};
-    const enclaveName = "DB_HATEFINITY";
+    const enclaveName = "AuthManager";
 
     const addEnclaveInstanceInCache = (enclaveName, enclaveInstance) => {
         instances[enclaveName] = enclaveInstance;

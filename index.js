@@ -2,8 +2,7 @@ const path = require("path");
 const {accountExists, walletLogin, getAccount, updateAccount} = require("./handlers/auth");
 const logger = $$.getLogger("index", "apis");
 const process = require("process");
-const config = require("./config.json");
-const API_URL = config.API_URL
+const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
 
 function requestBodyJSONMiddleware(request, response, next) {
     let data = "";
@@ -24,7 +23,7 @@ function requestBodyJSONMiddleware(request, response, next) {
 
 module.exports = function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
-    process.env.LOGS_FOLDER = path.join(server.rootFolder, "external-volume", "hatefinity-logs");
+    process.env.AUTH_LOGS_FOLDER = path.join(server.rootFolder, "external-volume", process.env.AUTH_LOGS_FOLDER);
 
     const {authenticationMiddleware} = require("./middlewares");
     const {generateAuthCode, walletLogin, walletLogout} = require("./handlers/auth");
@@ -57,7 +56,7 @@ module.exports = function (server) {
         req.userId = cookies.userId;
     };
 
-    server.use(`${API_URL}/*`, async function (req, res, next) {
+    server.use(`${AUTH_API_PREFIX}/*`, async function (req, res, next) {
         req.externalVolumePath = path.join(server.rootFolder, "external-volume");
         req.rootFolder = server.rootFolder
         req.coreProxyUrl = serverUrl;
@@ -65,21 +64,21 @@ module.exports = function (server) {
         next()
     })
 
-    server.use(`${API_URL}/*`, authenticationMiddleware);
+    server.use(`${AUTH_API_PREFIX}/*`, authenticationMiddleware);
 
-    server.post(`${API_URL}/generateAuthCode`, requestBodyJSONMiddleware);
-    server.post(`${API_URL}/generateAuthCode`, generateAuthCode);
+    server.post(`${AUTH_API_PREFIX}/generateAuthCode`, requestBodyJSONMiddleware);
+    server.post(`${AUTH_API_PREFIX}/generateAuthCode`, generateAuthCode);
 
-    server.post(`${API_URL}/walletLogin`, requestBodyJSONMiddleware);
-    server.post(`${API_URL}/walletLogin`, walletLogin);
+    server.post(`${AUTH_API_PREFIX}/walletLogin`, requestBodyJSONMiddleware);
+    server.post(`${AUTH_API_PREFIX}/walletLogin`, walletLogin);
 
-    server.post(`${API_URL}/walletLogout`, walletLogout);
+    server.post(`${AUTH_API_PREFIX}/walletLogout`, walletLogout);
 
-    server.get(`${API_URL}/accountExists/:email`, accountExists);
+    server.get(`${AUTH_API_PREFIX}/accountExists/:email`, accountExists);
 
-    server.get(`${API_URL}/account/:email`, getAccount);
+    server.get(`${AUTH_API_PREFIX}/account/:email`, getAccount);
 
-    server.put(`${API_URL}/account/:email`, requestBodyJSONMiddleware);
-    server.put(`${API_URL}/account/:email`, updateAccount);
+    server.put(`${AUTH_API_PREFIX}/account/:email`, requestBodyJSONMiddleware);
+    server.put(`${AUTH_API_PREFIX}/account/:email`, updateAccount);
 
 }

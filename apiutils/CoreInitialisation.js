@@ -6,8 +6,7 @@ const businessLogicCore = require("../../creditManager/GenericCore.js");
 const {MathMoney} = require("../../creditManager/util/CoreUtil");
 
 console.log("Initialisation...");
-const config = require("../config.json");
-const specificCoreLogic = config.SPECIFIC_CORE_LOGIC_PATH;
+const specificCoreLogic = process.env.SPECIFIC_CORE_LOGIC_PATH;
 
 async function createSpecificCore() {
     let autoSaver = require('../../creditManager/persistence/AutoSaverWithStorageStrategy.js').getAutoSaverPersistence();

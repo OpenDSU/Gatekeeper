@@ -11,10 +11,8 @@ const AUTH_CODES_TABLE = "auth_codes_table";
 const {getVersionlessSSI, getEnclaveInstance, generateRandomCode, validateEmail, interfaceDefinition} = require("./../apiutils/utils");
 
 
-const OUTFINITY_FAME_LOCK_KEY_ID = "outfinityFameLockKey";
-const config = require("../config.json");
-sgMail.setApiKey(config.SENDGRID_API_KEY);
-const senderEmail = config.SENDGRID_SENDER_EMAIL;     // Change to your verified sender from sendgrid
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+const senderEmail = process.env.SENDGRID_SENDER_EMAIL;     // Change to your verified sender from sendgrid
 
 const accountExists = async function (req, res) {
     let response;
@@ -302,7 +300,16 @@ const getAccount = async (req, res) => {
 const updateAccount = async (req, res) => {
     try {
         let {email} = req.params;
-        let {data} = req.body;
+        let data;
+        try {
+            data = JSON.parse(req.body);
+        }catch (e) {
+            res.writeHead(415, {'Content-Type': 'application/json'});
+            logger.debug(e.message);
+            res.end(JSON.stringify({error: "Wrong data"}));
+            return;
+        }
+
         email = decodeURIComponent(email);
         validateEmail(email);
         const enclaveInstance = await getEnclaveInstance();
