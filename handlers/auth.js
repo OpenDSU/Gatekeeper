@@ -9,6 +9,7 @@ const crypto = openDSU.loadAPI("crypto");
 const lockApi = openDSU.loadApi("lock");
 const AUTH_CODES_TABLE = "auth_codes_table";
 const {getVersionlessSSI, getEnclaveInstance, generateRandomCode, validateEmail, interfaceDefinition} = require("./../apiutils/utils");
+const {getCookies} = require("../apiutils/utils");
 
 
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
@@ -273,10 +274,12 @@ const walletLogin = async (req, res) => {
 }
 
 const walletLogout = async (req, res) => {
-    res.setHeader('Set-Cookie', [
-        'wallet_token=; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
-        'email=; HttpOnly; Secure; SameSite=Strict; Max-Age=0',
-    ]);
+    let cookies = getCookies(req);
+    let clearedCookies = [];
+    for(let cookie of Object.keys(cookies)){
+        clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
+    }
+    res.setHeader('Set-Cookie', clearedCookies);
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({operation: "success"}));
 }
