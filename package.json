@@ -4,6 +4,7 @@
   "description": "",
   "scripts": {
     "dev-install": "node ./bin/mkDevEnv.js && npm install",
+    "preinstall": "git clone https://github.com/AssistOS-AI/ExtensiblePersistence.git && git clone https://github.com/AssistOS-AI/CreditManager.git ./plugins/CreditManager",
     "postinstall": "node ./node_modules/octopus/scripts/setEnv --file=../../../env.json \"npm run do-install\""
   },
   "repository": {
