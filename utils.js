@@ -1,15 +1,15 @@
-//const openDSU = require('opendsu');
-//const crypto = openDSU.loadAPI("crypto");
-const crypto = require("crypto");
-crypto.generateRandom = function (length) {
-    return crypto.randomBytes(length);
-};
-crypto.getRandomSecret = function (length) {
-    return crypto.randomBytes(length);
-};
-crypto.encodeBase58 = function (data) {
-    return data.toString("base58");
-};
+const openDSU = require('opendsu');
+const crypto = openDSU.loadAPI("crypto");
+// const crypto = require("crypto");
+// crypto.generateRandom = function (length) {
+//     return crypto.randomBytes(length);
+// };
+// crypto.getRandomSecret = function (length) {
+//     return crypto.randomBytes(length);
+// };
+// crypto.encodeBase58 = function (data) {
+//     return data.toString("base64");
+// };
 function generateValidationCode(length) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     const bytes = crypto.generateRandom(length)

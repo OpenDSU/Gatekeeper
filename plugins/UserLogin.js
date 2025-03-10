@@ -2,7 +2,9 @@ const {generateValidationCode, generateId} = require('../utils');
 async function UserLogin(){
     let self = {};
     let persistence = await $$.loadPlugin("DefaultPersistence");
-
+    self.userExists = async function(email){
+        return await persistence.getUserLoginStatus(email) !== undefined;
+    }
     self.createUser = async function (email) {
         let validationEmailCode = generateValidationCode(5);
         return await persistence.createUserLoginStatus({
@@ -13,22 +15,27 @@ async function UserLogin(){
     self.logout = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         user.sessionIds = [];
-        return await persistence.updateUserLoginStatus(email, user);
+        return await persistence.updateUserLoginStatus(user.id, user);
     }
     self.authorizeUser = async function(email, code){
         let user = await persistence.getUserLoginStatus(email);
         if(user.validationEmailCode === code){
             user.validationEmailCode = undefined;
             let sessionId = generateId(16);
+            if(!user.sessionIds){
+                user.sessionIds = [];
+            }
             user.sessionIds.push(sessionId);
-            return await persistence.updateUserLoginStatus(email, user);
+            await persistence.updateUserLoginStatus(user.id, user);
+            return sessionId;
         }
         return false;
     }
     self.generateAuthorizationCode = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         user.validationEmailCode = generateValidationCode(5);
-        return await persistence.updateUserLoginStatus(email, user);
+        await persistence.updateUserLoginStatus(user.id, user);
+        return user.validationEmailCode;
     }
     self.checkSessionId = async function(email, sessionId){
         let user = await persistence.getUserLoginStatus(email);
@@ -41,7 +48,7 @@ async function UserLogin(){
     self.setUserInfo = async function(email, userInfo){
         let user = await persistence.getUserLoginStatus(email);
         user.userInfo = userInfo;
-        return await persistence.updateUserLoginStatus(email, user);
+        return await persistence.updateUserLoginStatus(user.id, user);
     }
     return self;
 }
