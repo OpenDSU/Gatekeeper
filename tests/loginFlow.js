@@ -19,6 +19,7 @@ async function loginFlow(){
        console.assert(userExists, "userExists check failed");
        let code = await UserLogin.generateAuthorizationCode(email);
        let sessionId = await UserLogin.authorizeUser(email, code);
+       console.assert(sessionId, "Login failed");
        console.log("User Logged in, sessionId:", sessionId);
        let authorized = await UserLogin.checkSessionId(email, sessionId);
        console.assert(authorized, "SessionId check failed");

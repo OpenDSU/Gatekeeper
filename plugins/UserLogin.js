@@ -29,7 +29,6 @@ async function UserLogin(){
             await persistence.updateUserLoginStatus(user.id, user);
             return sessionId;
         }
-        return false;
     }
     self.generateAuthorizationCode = async function(email){
         let user = await persistence.getUserLoginStatus(email);
