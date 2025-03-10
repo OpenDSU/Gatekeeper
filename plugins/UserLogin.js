@@ -1,12 +1,11 @@
-
+const {generateValidationCode, generateId} = require('../utils');
 async function UserLogin(){
     let self = {};
     let persistence = await $$.loadPlugin("DefaultPersistence");
 
     self.createUser = async function (email) {
-        //create here: validationEmailCode is a random string that will be sent to the user's email
-        let validationEmailCode;
-        return await persistence.createUser({
+        let validationEmailCode = generateValidationCode(5);
+        return await persistence.createUserLoginStatus({
             email: email,
             validationEmailCode: validationEmailCode
         });
@@ -20,7 +19,7 @@ async function UserLogin(){
         let user = await persistence.getUserLoginStatus(email);
         if(user.validationEmailCode === code){
             user.validationEmailCode = undefined;
-            let sessionId;
+            let sessionId = generateId(16);
             user.sessionIds.push(sessionId);
             return await persistence.updateUserLoginStatus(email, user);
         }
@@ -28,7 +27,7 @@ async function UserLogin(){
     }
     self.generateAuthorizationCode = async function(email){
         let user = await persistence.getUserLoginStatus(email);
-        user.validationEmailCode;
+        user.validationEmailCode = generateValidationCode(5);
         return await persistence.updateUserLoginStatus(email, user);
     }
     self.checkSessionId = async function(email, sessionId){

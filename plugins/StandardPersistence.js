@@ -1,6 +1,6 @@
 
 const extensiblePersistenceModule = require('../ExtensiblePersistence');
-
+const systemLogger = require('../logging/WorkSpaceLogger').getSystemLogger();
 async function createStandardPersistencePlugin(){
     const autoSaver = await extensiblePersistenceModule.getAutoSaverPersistence();
     let persistence = await extensiblePersistenceModule.getPersistentStorage(autoSaver, systemLogger, {
