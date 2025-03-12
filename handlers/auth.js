@@ -6,14 +6,14 @@ const sgMail = require("@sendgrid/mail");
 const openDSU = require('opendsu');
 const resolver = openDSU.loadAPI("resolver");
 const crypto = openDSU.loadAPI("crypto");
-const lockApi = openDSU.loadApi("lock");
+
 const AUTH_CODES_TABLE = "auth_codes_table";
 const {getVersionlessSSI, getEnclaveInstance, generateRandomCode, validateEmail, interfaceDefinition} = require("./../apiutils/utils");
 const {getCookies} = require("../apiutils/utils");
+const USER_LOGIN_PLUGIN = "UserLogin";
 
-
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-const senderEmail = process.env.SENDGRID_SENDER_EMAIL;     // Change to your verified sender from sendgrid
+//sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+//const senderEmail = process.env.SENDGRID_SENDER_EMAIL;     // Change to your verified sender from sendgrid
 
 const accountExists = async function (req, res) {
     let response;
@@ -21,10 +21,15 @@ const accountExists = async function (req, res) {
         let {email} = req.params;
         email = decodeURIComponent(email);
         validateEmail(email);
-        const enclaveInstance = await getEnclaveInstance();
-        response = await $$.promisify(enclaveInstance.getRecord)($$.SYSTEM_IDENTIFIER, AUTH_CODES_TABLE, email);
+        let userId = req.userId;
+        let serverUrl = req.servelessServerUrl;
+        let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, serverUrl, USER_LOGIN_PLUGIN);
+        await client.registerPlugin(USER_LOGIN_PLUGIN, path.join(__dirname, "..", "plugins", "UserLogin.js"));
+        response = await client.accountExists(email);
     } catch (err) {
         logger.debug(err.message);
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: err.message}));
     }
     res.writeHead(200, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({account_exists: !!response}));
@@ -166,13 +171,13 @@ const walletLogin = async (req, res) => {
             await $$.promisify(enclaveInstance.updateRecord)($$.SYSTEM_IDENTIFIER, AUTH_CODES_TABLE, loginData.email, result);
 
             logger.debug(`${req.userId} Wrong login data: ${JSON.stringify(loginData)}`);
-/*            await fameLogs.systemLog({
-                action: actions.ERROR, details: `Wrong login data: ${JSON.stringify(loginData)}`
-            });*/
+            /*            await fameLogs.systemLog({
+                            action: actions.ERROR, details: `Wrong login data: ${JSON.stringify(loginData)}`
+                        });*/
             if (result) {
-/*                await fameLogs.userLog(result.id, {
-                    action: actions.ERROR, details: `Wrong login data`
-                });*/
+                /*                await fameLogs.userLog(result.id, {
+                                    action: actions.ERROR, details: `Wrong login data`
+                                });*/
                 logger.debug(`${req.userId} Wrong login data`);
             }
             res.writeHead(401, {'Content-Type': 'application/json'});
@@ -183,12 +188,12 @@ const walletLogin = async (req, res) => {
         //more than 5 attempts access is locked for 30min
         if (result.attempts >= 5 && result.lastAttempt > new Date().getTime() - 30 * 60 * 1000) {
 
-          /*  await fameLogs.systemLog({
-                action: actions.ERROR, details: `Exceeded number of attempts: ${JSON.stringify(loginData)}`
-            });
-            await fameLogs.userLog(result.id, {
-                action: actions.ERROR, details: `Exceeded number of attempts`
-            });*/
+            /*  await fameLogs.systemLog({
+                  action: actions.ERROR, details: `Exceeded number of attempts: ${JSON.stringify(loginData)}`
+              });
+              await fameLogs.userLog(result.id, {
+                  action: actions.ERROR, details: `Exceeded number of attempts`
+              });*/
             await req.servelessClients[req.userId].loginEvent(req.userId, "FAIL", `Exceeded number of attempts`);
 
             logger.debug(`Exceeded number of attempts: ${JSON.stringify(loginData)}`);
@@ -210,12 +215,12 @@ const walletLogin = async (req, res) => {
 
         if (result.attempts < 5 && result.code === loginData.code) {
             if (result.__timestamp < new Date().getTime() - 15 * 60 * 1000) {
-               /* await fameLogs.systemLog({
-                    action: actions.ERROR, details: `Code is expired: ${JSON.stringify(loginData)}`
-                });
-                await fameLogs.userLog(result.id, {
-                    action: actions.ERROR, details: `Expired code`
-                });*/
+                /* await fameLogs.systemLog({
+                     action: actions.ERROR, details: `Code is expired: ${JSON.stringify(loginData)}`
+                 });
+                 await fameLogs.userLog(result.id, {
+                     action: actions.ERROR, details: `Expired code`
+                 });*/
                 await req.servelessClients[req.userId].loginEvent(req.userId, "FAIL", `Expired code`);
 
                 logger.debug(`Code is expired: ${JSON.stringify(loginData)}`);
@@ -266,7 +271,7 @@ const walletLogin = async (req, res) => {
 
     } catch (e) {
         /* await fameLogs.systemLog({action: actions.ERROR, details: e.message});*/
-       // await req.servelessClients[req.userId].loginEvent(req.userId, "FAIL", "");
+        // await req.servelessClients[req.userId].loginEvent(req.userId, "FAIL", "");
         logger.debug(`${req.userId} login failed : ${e.message}`);
         res.writeHead(500, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({error: "Operation failed"}));
