@@ -16,6 +16,5 @@
   },
   "homepage": "https://github.com/OpenDSU/Gatekeeper.git#readme",
   "dependencies": {
-    "@sendgrid/mail": "8.1.3"
   }
 }
