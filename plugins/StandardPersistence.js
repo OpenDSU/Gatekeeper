@@ -1,9 +1,7 @@
-
-const extensiblePersistenceModule = require('../ExtensiblePersistence');
-const systemLogger = require('../logging/WorkSpaceLogger').getSystemLogger();
+const persisto = require("Persisto");
 async function createStandardPersistencePlugin(){
-    const autoSaver = await extensiblePersistenceModule.getAutoSaverPersistence();
-    let persistence = await extensiblePersistenceModule.getPersistentStorage(autoSaver, systemLogger, {
+    let persistence = await persisto.initialisePersisto();
+    persistence.configureTypes({
         userLoginStatus: {
             globalUserId: "string",
             email: "string",
