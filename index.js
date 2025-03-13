@@ -32,7 +32,7 @@ module.exports = async function (server) {
     const serverlessAPI = await server.createServerlessAPI({urlPrefix});
 
     const serverUrl = serverlessAPI.getUrl();
-    const serverlessAPIProxy = server.createServerlessAPIProxy(serverUrl);
+    const serverlessAPIProxy = await server.createServerlessAPIProxy(serverUrl);
 
 
     server.use(`${AUTH_API_PREFIX}/*`, async function (req, res, next) {
