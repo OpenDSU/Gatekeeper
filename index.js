@@ -28,18 +28,17 @@ module.exports = async function (server) {
 
     const {authenticationMiddleware} = require("./middlewares");
     const urlPrefix = "/coreClient";
-
-    const serverlessAPI = await server.createServerlessAPI({urlPrefix});
-
-    const serverUrl = serverlessAPI.getUrl();
-    const serverlessAPIProxy = await server.createServerlessAPIProxy(serverUrl);
-
+    let serverUrl;
+    setTimeout(async ()=>{
+        const serverlessAPI = await server.createServerlessAPI({urlPrefix});
+        serverUrl = serverlessAPI.getUrl();
+        // const serverlessAPIProxy = await server.createServerlessAPIProxy(serverUrl);
+    },0);
 
     server.use(`${AUTH_API_PREFIX}/*`, async function (req, res, next) {
         req.externalVolumePath = path.join(server.rootFolder, "external-volume");
         req.rootFolder = server.rootFolder;
-        req.coreProxyUrl = serverUrl;
-        req.servelessServerUrl = serverUrl;
+        req.serverlessUrl = serverUrl;
         const cookies = getCookies(req);
         if (cookies.userId) {
             req.userId = cookies.userId;

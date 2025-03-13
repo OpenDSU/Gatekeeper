@@ -10,6 +10,8 @@ async function createStandardPersistencePlugin(){
             validationEmailCode: "string",
             sessionIds: "array",
             userInfo: "object",
+            lastLoginAttempt: "string",
+            validationEmailCodeTimestamp: "string"
         },
     });
 

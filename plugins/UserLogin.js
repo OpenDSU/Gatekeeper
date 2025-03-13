@@ -7,9 +7,11 @@ async function UserLogin(){
     }
     self.createUser = async function (email) {
         let validationEmailCode = generateValidationCode(5);
+        let walletKey = crypto.sha256(crypto.generateRandom(32));
         return await persistence.createUserLoginStatus({
             email: email,
-            validationEmailCode: validationEmailCode
+            validationEmailCode: validationEmailCode,
+            validationEmailCodeTimestamp: new Date().toISOString(),
         });
     }
     self.logout = async function(email){
@@ -17,17 +19,32 @@ async function UserLogin(){
         user.sessionIds = [];
         return await persistence.updateUserLoginStatus(user.id, user);
     }
-    self.authorizeUser = async function(email, code){
+    self.authorizeUser = async function(email, code, expiryTimeout){
         let user = await persistence.getUserLoginStatus(email);
         if(user.validationEmailCode === code){
+            if(new Date().getTime() - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout){
+                return {
+                    status: "failed",
+                    reason: "code expired"
+                }
+            }
             user.validationEmailCode = undefined;
             let sessionId = generateId(16);
             if(!user.sessionIds){
                 user.sessionIds = [];
             }
             user.sessionIds.push(sessionId);
+            user.loginAttempts = 0;
             await persistence.updateUserLoginStatus(user.id, user);
-            return sessionId;
+            return {
+                status: "success",
+                sessionId: sessionId
+            };
+        } else {
+            return {
+                status: "failed",
+                reason: "invalid code"
+            }
         }
     }
     self.generateAuthorizationCode = async function(email){
@@ -36,6 +53,12 @@ async function UserLogin(){
         await persistence.updateUserLoginStatus(user.id, user);
         return user.validationEmailCode;
     }
+    self.getUserValidationEmailCode = async function(email){
+        let user = await persistence.getUserLoginStatus(email);
+        if(user){
+            return user.validationEmailCode;
+        }
+    };
     self.checkSessionId = async function(email, sessionId){
         let user = await persistence.getUserLoginStatus(email);
         return user.sessionIds.includes(sessionId);
@@ -47,6 +70,32 @@ async function UserLogin(){
     self.setUserInfo = async function(email, userInfo){
         let user = await persistence.getUserLoginStatus(email);
         user.userInfo = userInfo;
+        return await persistence.updateUserLoginStatus(user.id, user);
+    }
+    self.getLoginAttempts = async function(email){
+        let user = await persistence.getUserLoginStatus(email);
+        return user.loginAttempts;
+    };
+    self.incrementLoginAttempts = async function(email){
+        let user = await persistence.getUserLoginStatus(email);
+        if(!user.loginAttempts){
+            user.loginAttempts = 0;
+        }
+        user.loginAttempts++;
+        return await persistence.updateUserLoginStatus(user.id, user);
+    }
+    self.resetLoginAttempts = async function(email){
+        let user = await persistence.getUserLoginStatus(email);
+        user.loginAttempts = 0;
+        return await persistence.updateUserLoginStatus(user.id, user);
+    }
+    self.getLastLoginAttempt = async function(email){
+        let user = await persistence.getUserLoginStatus(email);
+        return user.lastLoginAttempt;
+    };
+    self.setLastLoginAttempt = async function(email, date){
+        let user = await persistence.getUserLoginStatus(email);
+        user.lastLoginAttempt = date;
         return await persistence.updateUserLoginStatus(user.id, user);
     }
     return self;
