@@ -3,30 +3,12 @@ const auth = require("./handlers/auth");
 const process = require("process");
 const {getCookies} = require("./apiutils/utils");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
-const USER_LOGIN_PLUGIN = "UserLogin";
-
-function requestBodyJSONMiddleware(request, response, next) {
-    let data = "";
-
-    request.on('data', (chunk) => {
-        data += chunk;
-    });
-
-    request.on('end', () => {
-        if (!data.length) {
-            request.body = undefined;
-            return next();
-        }
-        request.body = data;
-        next();
-    });
-}
+const {authenticationMiddleware, bodyReader} = require("./middlewares");
 
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
     process.env.AUTH_LOGS_FOLDER = path.join(server.rootFolder, "external-volume", process.env.AUTH_LOGS_FOLDER);
 
-    const {authenticationMiddleware} = require("./middlewares");
     const urlPrefix = "/coreClient";
     let serverUrl;
     setTimeout(async ()=>{
@@ -49,19 +31,14 @@ module.exports = async function (server) {
     })
 
     server.use(`${AUTH_API_PREFIX}/*`, authenticationMiddleware);
+    server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
-    server.post(`${AUTH_API_PREFIX}/generateAuthCode`, requestBodyJSONMiddleware);
+    server.get(`${AUTH_API_PREFIX}/userExists/:email`, auth.userExists);
+    server.get(`${AUTH_API_PREFIX}/getInfo/:email`, auth.getUserInfo);
+
     server.post(`${AUTH_API_PREFIX}/generateAuthCode`, auth.generateAuthCode);
-
-    server.post(`${AUTH_API_PREFIX}/walletLogin`, requestBodyJSONMiddleware);
     server.post(`${AUTH_API_PREFIX}/walletLogin`, auth.walletLogin);
-
     server.post(`${AUTH_API_PREFIX}/walletLogout`, auth.walletLogout);
 
-    server.get(`${AUTH_API_PREFIX}/accountExists/:email`, auth.accountExists);
-    server.get(`${AUTH_API_PREFIX}/account/:email`, auth.getAccount);
-
-    server.put(`${AUTH_API_PREFIX}/account/:email`, requestBodyJSONMiddleware);
-    server.put(`${AUTH_API_PREFIX}/account/:email`, auth.updateAccount);
-
+    server.put(`${AUTH_API_PREFIX}/setInfo/:email`, auth.setUserInfo);
 }

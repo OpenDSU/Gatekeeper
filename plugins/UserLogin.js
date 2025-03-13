@@ -1,17 +1,20 @@
-const {generateValidationCode, generateId} = require('../utils');
+const {generateValidationCode, generateId, generateWalletKey} = require('../utils');
+const expiryTimeout = 5 * 60 * 1000;
+const maxLoginAttempts = 5;
 async function UserLogin(){
     let self = {};
-    let persistence = await $$.loadPlugin("DefaultPersistence");
+    let persistence = await $$.loadPlugin("StandardPersistence");
     self.userExists = async function(email){
         return await persistence.getUserLoginStatus(email) !== undefined;
     }
     self.createUser = async function (email) {
         let validationEmailCode = generateValidationCode(5);
-        let walletKey = crypto.sha256(crypto.generateRandom(32));
+        let walletKey = generateWalletKey();
         return await persistence.createUserLoginStatus({
             email: email,
             validationEmailCode: validationEmailCode,
             validationEmailCodeTimestamp: new Date().toISOString(),
+            walletKey: walletKey
         });
     }
     self.logout = async function(email){
@@ -19,15 +22,36 @@ async function UserLogin(){
         user.sessionIds = [];
         return await persistence.updateUserLoginStatus(user.id, user);
     }
-    self.authorizeUser = async function(email, code, expiryTimeout){
+    self.authorizeUser = async function(email, code){
+        let userExists = await self.userExists(email);
+        if (!userExists) {
+            return {
+                status: "failed",
+                reason: "account doesn't exist"
+            };
+        }
         let user = await persistence.getUserLoginStatus(email);
+        let now = new Date().getTime();
+        //reset attempts as 30min passed
+        if (user.loginAttempts >= maxLoginAttempts && user.lastLoginAttempt <= now - expiryTimeout) {
+            await self.resetLoginAttempts(email);
+        }
+
+        if (user.loginAttempts >= maxLoginAttempts) {
+            return {
+                status: "failed",
+                reason: "exceeded number of attempts",
+                lockTime: user.lastLoginAttempt + expiryTimeout - now
+            }
+        }
         if(user.validationEmailCode === code){
-            if(new Date().getTime() - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout){
+            if(now - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout){
                 return {
                     status: "failed",
                     reason: "code expired"
                 }
             }
+
             user.validationEmailCode = undefined;
             let sessionId = generateId(16);
             if(!user.sessionIds){
@@ -38,13 +62,19 @@ async function UserLogin(){
             await persistence.updateUserLoginStatus(user.id, user);
             return {
                 status: "success",
-                sessionId: sessionId
+                sessionId: sessionId,
+                walletKey: user.walletKey,
+                userInfo: user.userInfo,
+                userId: user.id
             };
-        } else {
-            return {
-                status: "failed",
-                reason: "invalid code"
-            }
+        }
+
+        await self.incrementLoginAttempts(email);
+        user.lastLoginAttempt = now;
+        await persistence.updateUserLoginStatus(user.id, user);
+        return {
+            status: "failed",
+            reason: "invalid code"
         }
     }
     self.generateAuthorizationCode = async function(email){
@@ -55,9 +85,29 @@ async function UserLogin(){
     }
     self.getUserValidationEmailCode = async function(email){
         let user = await persistence.getUserLoginStatus(email);
-        if(user){
-            return user.validationEmailCode;
+        if(!user){
+            user = await self.createUser(email);
+            return {
+                status: "success",
+                code: user.validationEmailCode,
+                walletKey: user.walletKey
+            };
         }
+        if (user.loginAttempts >= maxLoginAttempts) {
+            if(user.lastLoginAttempt > new Date().getTime() - expiryTimeout){
+                return {
+                    status: "failed",
+                    reason: "exceeded number of attempts",
+                    lockTime: user.lastLoginAttempt + expiryTimeout - new Date().getTime()
+                }
+            }
+            await self.resetLoginAttempts(email);
+        }
+        return {
+            status: "success",
+            code: user.validationEmailCode
+        };
+
     };
     self.checkSessionId = async function(email, sessionId){
         let user = await persistence.getUserLoginStatus(email);
@@ -72,10 +122,6 @@ async function UserLogin(){
         user.userInfo = userInfo;
         return await persistence.updateUserLoginStatus(user.id, user);
     }
-    self.getLoginAttempts = async function(email){
-        let user = await persistence.getUserLoginStatus(email);
-        return user.loginAttempts;
-    };
     self.incrementLoginAttempts = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         if(!user.loginAttempts){
@@ -89,13 +135,13 @@ async function UserLogin(){
         user.loginAttempts = 0;
         return await persistence.updateUserLoginStatus(user.id, user);
     }
-    self.getLastLoginAttempt = async function(email){
+    self.getUserInfo = async function(email){
         let user = await persistence.getUserLoginStatus(email);
-        return user.lastLoginAttempt;
-    };
-    self.setLastLoginAttempt = async function(email, date){
+        return user.userInfo;
+    }
+    self.setUserInfo = async function (email, userInfo){
         let user = await persistence.getUserLoginStatus(email);
-        user.lastLoginAttempt = date;
+        user.userInfo = userInfo;
         return await persistence.updateUserLoginStatus(user.id, user);
     }
     return self;

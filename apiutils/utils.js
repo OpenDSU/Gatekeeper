@@ -1,13 +1,7 @@
-const lightDBFactory = require("./LightDBEnclaveFactory");
-const https = require('https');
-
-const interfaceDefinition = ["addAccount", "loginEvent"]
-
 function getCookies(req) {
-    const cookies = req.headers.cookie
+    return req.headers.cookie
         ? Object.fromEntries(req.headers.cookie.split('; ').map(c => c.split('=')))
-        : {};
-    return cookies
+        : {}
 }
 
 function getVersionlessSSI(email, password) {
@@ -17,12 +11,6 @@ function getVersionlessSSI(email, password) {
     let path = crypto.deriveEncryptionKey(`${email}${password}`, 3000);
     path = crypto.sha256(path);
     return keySSISpace.createVersionlessSSI(undefined, path, crypto.deriveEncryptionKey(password, 1000));
-}
-
-const lightDBEnclaveFactory = lightDBFactory.getLightDBEnclaveFactoryInstance();
-
-async function getEnclaveInstance() {
-    return await lightDBEnclaveFactory.createLightDBEnclaveAsync();
 }
 
 function generateRandomCode(length) {
@@ -42,19 +30,20 @@ function generateRandomCode(length) {
     return code;
 }
 
-const validateEmail = function (email) {
+function validateEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        throw new Error("invalid email address");
-    }
+    return emailRegex.test(email);
 }
-
+function createAuthCookies(userId, email, walletKey, userInfo) {
+    return [`userId=${userId}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`,
+        `email=${email}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`,
+        `walletKey=${walletKey}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`,
+        `userInfo=${JSON.stringify(userInfo)}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`]
+}
 
 module.exports = {
     getCookies,
     getVersionlessSSI,
-    getEnclaveInstance,
     validateEmail,
-    generateRandomCode,
-    interfaceDefinition
+    createAuthCookies
 }

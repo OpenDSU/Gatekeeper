@@ -1,36 +1,35 @@
 const logger = $$.getLogger("apis", "auth");
 const path = require("path");
-const fs = require("fs");
-const sgMail = require("@sendgrid/mail");
 const openDSU = require('opendsu');
 const resolver = openDSU.loadAPI("resolver");
-const crypto = openDSU.loadAPI("crypto");
-
-const AUTH_CODES_TABLE = "auth_codes_table";
-const {getVersionlessSSI, getEnclaveInstance, generateRandomCode, validateEmail, interfaceDefinition} = require("./../apiutils/utils");
-const {getCookies} = require("../apiutils/utils");
+const utils = require("./../apiutils/utils");
 const USER_LOGIN_PLUGIN = "UserLogin";
-
-async function initAPIcClient(userId, serverUrl){
+let clients = {};
+async function initAPIClient(userId, serverUrl){
+    if(clients[userId]){
+        return clients[userId];
+    }
     let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, serverUrl, USER_LOGIN_PLUGIN);
+    await client.registerPlugin("StandardPersistence", path.join(__dirname, "..", "plugins", "StandardPersistence.js"));
     await client.registerPlugin(USER_LOGIN_PLUGIN, path.join(__dirname, "..", "plugins", "UserLogin.js"));
+    clients[userId] = client;
     return client;
 }
-const accountExists = async function (req, res) {
+const userExists = async function (req, res) {
     let response;
     try {
         let {email} = req.params;
         email = decodeURIComponent(email);
-        validateEmail(email);
-        let client = await initAPIcClient(req.userId, req.serverlessUrl);
-        response = await client.accountExists(email);
+        utils.validateEmail(email);
+        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        response = await client.userExists(email);
     } catch (err) {
         logger.debug(err.message);
         res.writeHead(500, {'Content-Type': 'application/json'});
         return res.end(JSON.stringify({error: err.message}));
     }
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({account_exists: !!response}));
+    res.end(JSON.stringify({account_exists: response}));
 }
 
 const generateAuthCode = async function (req, res) {
@@ -44,51 +43,43 @@ const generateAuthCode = async function (req, res) {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
-    let client = await initAPIcClient(req.userId, req.serverlessUrl);
+    let client = await initAPIClient(req.userId, req.serverlessUrl);
 
     try {
         let {email, refererId} = authData;
-        validateEmail(email);
-
-        let code = client.getUserValidationEmailCode(email);
-        if (!code) {
-            let user = await client.createUser(email);
-            code = user.validationEmailCode;
-        } else {
-            let loginAttempts = await client.getLoginAttempts(email);
-            let lastAttempt = await client.getLastLoginAttempt(email);
-            if (loginAttempts >= 5) {
-                if(lastAttempt > new Date().getTime() - 30 * 60 * 1000){
-                    await client.loginEvent(req.userId, "FAIL", `Exceeded number of attempts`);
-                    logger.debug(`Exceeded number of attempts in generateAuthCode: ${JSON.stringify(authData)}`);
-                    res.writeHead(403, {'Content-Type': 'application/json'});
-                    res.end(JSON.stringify({
-                        error: "Exceeded number of attempts",
-                        details: {
-                            lockTime: lastAttempt + 30 * 60 * 1000 - new Date().getTime()
-                        }
-                    }));
-                    return;
-                } else {
-                    await client.resetLoginAttempts(email);
+        utils.validateEmail(email);
+        let result = await client.getUserValidationEmailCode(email);
+        if (result.status === "success") {
+            if(result.walletKey){
+                const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
+                await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
+                let dsu = await $$.promisify(resolver.loadDSU)(versionlessSSI);
+            }
+            let responseMessage = {result: "success"};
+            if (req.headers.origin === "http://localhost:8080") {
+                responseMessage.code = result.code;
+            } else {
+                const msg = {
+                    "to": email,
+                    "subject": "Your Hatefinity authentication code",
+                    "text": `Your authentication code is: ${result.code}`,
+                    "html": `Your authentication code is: <strong>${result.code}</strong>`,
                 }
+                client.sendMail(msg);
             }
-        }
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify(responseMessage));
 
-        let resultObj = {result: "success"};
-        if (req.headers.origin === "http://localhost:8080") {
-            resultObj.code = code;
-        } else {
-            const msg = {
-                "to": email,
-                "subject": "Your Hatefinity authentication code",
-                "text": `Your authentication code is: ${code}`,
-                "html": `Your authentication code is: <strong>${code}</strong>`,
-            }
-            client.sendMail(msg)
         }
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify(resultObj));
+        //await client.loginEvent(req.userId, "FAIL", `Exceeded number of attempts`);
+        logger.debug(`Exceeded number of attempts in generateAuthCode: ${JSON.stringify(authData)}`);
+        res.writeHead(403, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({
+            error: "Exceeded number of attempts",
+            details: {
+                lockTime: result.lockTime
+            }
+        }));
     } catch (e) {
         res.writeHead(500, {'Content-Type': 'application/json'});
         logger.debug(e.message);
@@ -108,59 +99,23 @@ const walletLogin = async (req, res) => {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
+    let client = await initAPIClient(req.userId, req.serverlessUrl);
     try {
-        validateEmail(loginData.email);
-        let client = await initAPIcClient(req.userId, req.serverlessUrl);
-
-        let accountExists = await client.accountExists(loginData.email);
-        if (!accountExists) {
-            logger.debug(`Account doesn't exist: ${JSON.stringify(loginData)}`);
+        utils.validateEmail(loginData.email);
+        let result = await client.authorizeUser(loginData.email, loginData.code);
+        if(result.status === "success"){
+            //await client.loginEvent(result.userId, "SUCCESS");
+            let cookies = utils.createAuthCookies(result.walletKey, result.email, result.userId, result.userInfo);
+            res.setHeader('Set-Cookie', cookies);
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({operation: "success"}));
+        } else {
+            //await client.loginEvent(req.userId, "FAIL", result.message);
             res.writeHead(401, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify({error: "Invalid credentials"}));
-            return;
+            res.end(JSON.stringify({error: result.reason}));
         }
-        let loginAttempts = await client.getLoginAttempts(loginData.email);
-        if (!loginAttempts || loginAttempts < 5) {
-            let sessionId = await client.authorizeUser(loginData.email, loginData.code);
-            if(!sessionId){
-                await client.incrementLoginAttempts(loginData.email);
-                let lastAttempt = new Date().getTime();
-                await client.setLastLoginAttempt(loginData.email, lastAttempt);
-                await client.loginEvent(req.userId, "FAIL", `Invalid code`);
-                logger.debug(`Invalid code: ${JSON.stringify(loginData)}`);
-                res.writeHead(401, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({error: "Invalid credentials"}));
-                return;
-            } else {
-                //await client.loginEvent(result.id, "SUCCESS");
-                res.setHeader('Set-Cookie', [`wallet_token=${result.wallet_token}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`, `email=${loginData.email}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`, `userId=${result.id}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`]);
-                res.writeHead(200, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({operation: "success"}));
-            }
-        }
-
-        let lastAttempt = await client.getLastLoginAttempt(loginData.email);
-        //more than 5 attempts access is locked for 30min
-        if (loginAttempts >= 5 && lastAttempt > new Date().getTime() - 30 * 60 * 1000) {
-            await client.loginEvent(req.userId, "FAIL", `Exceeded number of attempts`);
-            logger.debug(`Exceeded number of attempts: ${JSON.stringify(loginData)}`);
-            res.writeHead(403, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify({
-                error: "Exceeded number of attempts",
-                details: {
-                    lockTime: lastAttempt + 30 * 60 * 1000 - new Date().getTime()
-                }
-            }));
-            return;
-        }
-
-        //reset attempts as 30min passed
-        if (loginAttempts >= 5 && lastAttempt <= new Date().getTime() - 30 * 60 * 1000) {
-            await client.resetLoginAttempts(loginData.email);
-        }
-
     } catch (e) {
-        await client.loginEvent(req.userId, "FAIL", "");
+        //await client.loginEvent(req.userId, "FAIL", "");
         logger.debug(`${req.userId} login failed : ${e.message}`);
         res.writeHead(500, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({error: "Operation failed"}));
@@ -168,7 +123,7 @@ const walletLogin = async (req, res) => {
 }
 
 const walletLogout = async (req, res) => {
-    let cookies = getCookies(req);
+    let cookies = utils.getCookies(req);
     let clearedCookies = [];
     for(let cookie of Object.keys(cookies)){
         clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
@@ -178,15 +133,15 @@ const walletLogout = async (req, res) => {
     res.end(JSON.stringify({operation: "success"}));
 }
 
-const getAccount = async (req, res) => {
+const getUserInfo = async (req, res) => {
     try {
         let {email} = req.params;
         email = decodeURIComponent(email);
-        validateEmail(email);
-        const enclaveInstance = await getEnclaveInstance();
-        let user = await $$.promisify(enclaveInstance.getRecord)($$.SYSTEM_IDENTIFIER, AUTH_CODES_TABLE, email);
+        utils.validateEmail(email);
+        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        let userInfo = await client.getUserInfo(email);
         res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify(user));
+        res.end(JSON.stringify(userInfo));
     } catch (e) {
         logger.debug(e.message);
         res.writeHead(500, {'Content-Type': 'application/json'});
@@ -194,7 +149,7 @@ const getAccount = async (req, res) => {
     }
 
 }
-const updateAccount = async (req, res) => {
+const setUserInfo = async (req, res) => {
     try {
         let {email} = req.params;
         let data;
@@ -208,9 +163,9 @@ const updateAccount = async (req, res) => {
         }
 
         email = decodeURIComponent(email);
-        validateEmail(email);
-        const enclaveInstance = await getEnclaveInstance();
-        await $$.promisify(enclaveInstance.updateRecord)($$.SYSTEM_IDENTIFIER, AUTH_CODES_TABLE, email, data);
+        utils.validateEmail(email);
+        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        await client.setUserInfo(email, data);
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({operation: "success"}));
     } catch (e) {
@@ -223,7 +178,7 @@ module.exports = {
     generateAuthCode,
     walletLogin,
     walletLogout,
-    accountExists,
-    getAccount,
-    updateAccount
+    userExists,
+    getUserInfo,
+    setUserInfo
 }

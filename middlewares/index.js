@@ -8,10 +8,10 @@ async function authenticationMiddleware(req, res, next) {
         return next(); // Skip middleware for these routes
     }
     const cookies = getCookies(req);
-    if (cookies.wallet_token && cookies.email) {
+    if (cookies.walletKey && cookies.email) {
         const enclaveInstance = await getEnclaveInstance();
         let result = await $$.promisify(enclaveInstance.getRecord)($$.SYSTEM_IDENTIFIER, "auth_codes_table", cookies.email);
-        if (result && result.wallet_token === cookies.wallet_token) {
+        if (result && result.walletKey === cookies.walletKey) {
             next();
             return;
         }
@@ -19,7 +19,24 @@ async function authenticationMiddleware(req, res, next) {
     res.writeHead(401, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({operation: "unauthorized"}));
 }
+function bodyReader(request, response, next) {
+    let data = "";
+
+    request.on('data', (chunk) => {
+        data += chunk;
+    });
+
+    request.on('end', () => {
+        if (!data.length) {
+            request.body = undefined;
+            return next();
+        }
+        request.body = data;
+        next();
+    });
+}
 
 module.exports = {
-    authenticationMiddleware
+    authenticationMiddleware,
+    bodyReader
 };

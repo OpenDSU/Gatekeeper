@@ -1,4 +1,4 @@
-const persisto = require("Persisto");
+const persisto = require("../Persisto");
 async function createStandardPersistencePlugin(){
     let persistence = await persisto.initialisePersisto();
     persistence.configureTypes({
@@ -6,7 +6,7 @@ async function createStandardPersistencePlugin(){
             globalUserId: "string",
             email: "string",
             loginAttempts: "integer",
-            walletToken: "string",
+            walletKey: "string",
             validationEmailCode: "string",
             sessionIds: "array",
             userInfo: "object",

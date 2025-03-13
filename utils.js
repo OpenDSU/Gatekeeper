@@ -19,7 +19,13 @@ function generateId(length = 16) {
     }
     return randomStringId;
 }
+function generateWalletKey(){
+    return crypto.createHash('sha256')
+        .update(crypto.randomBytes(32))
+        .digest('hex');
+}
 module.exports = {
     generateValidationCode,
-    generateId
+    generateId,
+    generateWalletKey
 };

@@ -3,7 +3,7 @@
   "version": "v1.0.0",
   "description": "",
   "scripts": {
-    "preinstall": "git clone https://github.com/OpenDSU/Persisto.git && git clone https://github.com/AssistOS-AI/CreditManager.git ./plugins/CreditManager"
+    "preinstall": "git clone https://github.com/OpenDSU/Persisto.git"
   },
   "repository": {
     "type": "git",
