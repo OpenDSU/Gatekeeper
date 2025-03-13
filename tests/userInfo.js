@@ -1,12 +1,9 @@
-require("./deps/clean");
-const fs = require("fs").promises;
-
+require("./testInit/clean");
 
 async function userInfo(){
-    await fs.rm("./work_space_data/", { recursive: true, force: true });
-    await fs.mkdir("./work_space_data/");
+    await $$.clean();
 
-    await $$.registerPlugin("DefaultPersistence", "../../plugins/StandardPersistence.js");
+    await $$.registerPlugin("StandardPersistence", "../../plugins/StandardPersistence.js");
     await $$.registerPlugin("UserLogin", "../../plugins/UserLogin.js");
     const UserLogin = $$.loadPlugin("UserLogin");
 
@@ -30,6 +27,7 @@ async function userInfo(){
         await UserLogin.setUserInfo(email, userInfo);
         let userInfoCheck = await UserLogin.getUserInfo(email);
         console.assert(userInfoCheck === userInfo, "userInfo check failed");
+        await UserLogin.shutDown();
     } else {
         throw new Error("User already exists");
     }
@@ -37,9 +35,7 @@ async function userInfo(){
 
 userInfo().then(()=>{
     console.log("End of test");
-    process.exit(0);
 }).catch((e)=>{
     console.error(e)
-    process.exit(1);
 });
 

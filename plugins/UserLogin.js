@@ -144,6 +144,9 @@ async function UserLogin(){
         user.userInfo = userInfo;
         return await persistence.updateUserLoginStatus(user.id, user);
     }
+    self.shutDown = async function(){
+        await persistence.shutDown();
+    }
     return self;
 }
 

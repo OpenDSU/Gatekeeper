@@ -1,3 +1,4 @@
+const fs = require('fs').promises;
 let plugins = {};
 
 if(typeof globalThis.$$ === "undefined"){
@@ -35,4 +36,11 @@ if (typeof globalThis.$$.loadPlugin === "undefined") {
         return plugins[pluginName];
     }
     $$.loadPlugin = loadPlugin;
+}
+
+$$.clean = async function(){
+    await fs.rm("./work_space_data/", { recursive: true, force: true });
+    await fs.mkdir("./work_space_data/");
+    await fs.rm("./logs/", { recursive: true, force: true });
+    await fs.mkdir("./logs/");
 }
