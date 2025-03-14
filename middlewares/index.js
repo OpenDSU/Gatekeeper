@@ -8,7 +8,7 @@ async function authenticationMiddleware(req, res, next) {
         return next(); // Skip middleware for these routes
     }
     const cookies = getCookies(req);
-    if (cookies.walletKey && cookies.email && cookies.userId) {
+    if (cookies.walletKey && cookies.email) {
         next();
         return;
     }

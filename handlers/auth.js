@@ -102,7 +102,7 @@ const walletLogin = async (req, res) => {
         let result = await client.authorizeUser(loginData.email, loginData.code);
         if(result.status === "success"){
             //await client.loginEvent(result.userId, "SUCCESS");
-            let cookies = utils.createAuthCookies(result.walletKey, result.email, result.userId, result.userInfo, result.sessionId);
+            let cookies = utils.createAuthCookies(result.userId,  result.email, result.walletKey, result.userInfo, result.sessionId);
             res.setHeader('Set-Cookie', cookies);
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({operation: "success"}));
