@@ -6,14 +6,14 @@ async function smokeTest() {
     await $$.registerPlugin("UserLogin", "../../plugins/UserLogin.js");
     const UserLogin = $$.loadPlugin("UserLogin");
     const email = "test@test.com";
-    let userExists = await UserLogin.userExists(email);
-    if (!userExists) {
+    let result = await UserLogin.userExists(email);
+    if (!result.userExists) {
         let user = await UserLogin.createUser(email);
         console.log("User created", user);
 
         let userExists = await UserLogin.userExists(email);
         console.assert(userExists, "userExists check failed");
-        let code = await UserLogin.generateAuthorizationCode(email);
+        let code = await UserLogin.getUserValidationEmailCode(email);
 
         let sessionId = await UserLogin.authorizeUser(email, code);
         console.assert(sessionId, "Login failed");

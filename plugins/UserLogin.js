@@ -5,22 +5,37 @@ async function UserLogin(){
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
     self.userExists = async function(email){
-        return await persistence.getUserLoginStatus(email) !== undefined;
+        let user = await persistence.getUserLoginStatus(email);
+        if(user){
+            return {
+                status: "success",
+                userExists: true
+            }
+        }
+        return {
+            status: "success",
+            userExists: false
+        }
     }
     self.createUser = async function (email) {
         let validationEmailCode = generateValidationCode(5);
         let walletKey = generateWalletKey();
-        return await persistence.createUserLoginStatus({
+        let user = await persistence.createUserLoginStatus({
             email: email,
             validationEmailCode: validationEmailCode,
             validationEmailCodeTimestamp: new Date().toISOString(),
             walletKey: walletKey
         });
+        user.status = "success";
+        return user;
     }
     self.logout = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         user.sessionIds = [];
-        return await persistence.updateUserLoginStatus(user.id, user);
+        await persistence.updateUserLoginStatus(user.id, user);
+        return {
+            status: "success"
+        }
     }
     self.authorizeUser = async function(email, code){
         let userExists = await self.userExists(email);
@@ -77,12 +92,7 @@ async function UserLogin(){
             reason: "invalid code"
         }
     }
-    self.generateAuthorizationCode = async function(email){
-        let user = await persistence.getUserLoginStatus(email);
-        user.validationEmailCode = generateValidationCode(5);
-        await persistence.updateUserLoginStatus(user.id, user);
-        return user.validationEmailCode;
-    }
+
     self.getUserValidationEmailCode = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         if(!user){
@@ -111,16 +121,29 @@ async function UserLogin(){
     };
     self.checkSessionId = async function(email, sessionId){
         let user = await persistence.getUserLoginStatus(email);
-        return user.sessionIds.includes(sessionId);
+        if(user.sessionIds.includes(sessionId)){
+            return {
+                status: "success"
+            };
+        }
+        return {
+            status: "failed"
+        }
     }
     self.getUserInfo = async function(email){
         let user = await persistence.getUserLoginStatus(email);
-        return user.userInfo;
+        return {
+            status: "success",
+            userInfo: user.userInfo
+        };
     }
     self.setUserInfo = async function(email, userInfo){
         let user = await persistence.getUserLoginStatus(email);
         user.userInfo = userInfo;
-        return await persistence.updateUserLoginStatus(user.id, user);
+        await persistence.updateUserLoginStatus(user.id, user);
+        return {
+            status: "success"
+        }
     }
     self.incrementLoginAttempts = async function(email){
         let user = await persistence.getUserLoginStatus(email);
@@ -128,24 +151,24 @@ async function UserLogin(){
             user.loginAttempts = 0;
         }
         user.loginAttempts++;
-        return await persistence.updateUserLoginStatus(user.id, user);
+        await persistence.updateUserLoginStatus(user.id, user);
+        return {
+            status: "success"
+        }
     }
     self.resetLoginAttempts = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         user.loginAttempts = 0;
-        return await persistence.updateUserLoginStatus(user.id, user);
-    }
-    self.getUserInfo = async function(email){
-        let user = await persistence.getUserLoginStatus(email);
-        return user.userInfo;
-    }
-    self.setUserInfo = async function (email, userInfo){
-        let user = await persistence.getUserLoginStatus(email);
-        user.userInfo = userInfo;
-        return await persistence.updateUserLoginStatus(user.id, user);
+        await persistence.updateUserLoginStatus(user.id, user);
+        return {
+            status: "success"
+        }
     }
     self.shutDown = async function(){
         await persistence.shutDown();
+        return {
+            status: "success"
+        }
     }
     return self;
 }

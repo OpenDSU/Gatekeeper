@@ -12,7 +12,7 @@ async function initAPIClient(userId, serverlessAPIId){
     if(clients[userId]){
         return clients[userId];
     }
-    let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `${baseURL}/proxy`, serverlessAPIId, USER_LOGIN_PLUGIN);
+    let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `http://localhost:8080/proxy`, serverlessAPIId, USER_LOGIN_PLUGIN);
     await client.registerPlugin("StandardPersistence", path.join(__dirname, "..", "plugins", "StandardPersistence.js"));
     await client.registerPlugin(USER_LOGIN_PLUGIN, path.join(__dirname, "..", "plugins", "UserLogin.js"));
     clients[userId] = client;
@@ -32,7 +32,7 @@ const userExists = async function (req, res) {
         return res.end(JSON.stringify({error: err.message}));
     }
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({account_exists: response}));
+    res.end(JSON.stringify({account_exists: response.userExists}));
 }
 
 const generateAuthCode = async function (req, res) {
@@ -71,8 +71,7 @@ const generateAuthCode = async function (req, res) {
                 client.sendMail(msg);
             }
             res.writeHead(200, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify(responseMessage));
-
+            return res.end(JSON.stringify(responseMessage));
         }
         //await client.loginEvent(req.userId, "FAIL", `Exceeded number of attempts`);
         logger.debug(`Exceeded number of attempts in generateAuthCode: ${JSON.stringify(authData)}`);
@@ -149,9 +148,9 @@ const getUserInfo = async (req, res) => {
         email = decodeURIComponent(email);
         utils.validateEmail(email);
         let client = await initAPIClient(req.userId, req.serverlessAPIId);
-        let userInfo = await client.getUserInfo(email);
+        let result = await client.getUserInfo(email);
         res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify(userInfo));
+        res.end(JSON.stringify(result.userInfo));
     } catch (e) {
         logger.debug(e.message);
         res.writeHead(500, {'Content-Type': 'application/json'});
@@ -159,6 +158,7 @@ const getUserInfo = async (req, res) => {
     }
 
 }
+
 const setUserInfo = async (req, res) => {
     try {
         let {email} = req.params;
