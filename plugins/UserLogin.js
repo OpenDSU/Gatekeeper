@@ -1,4 +1,4 @@
-const {generateValidationCode, generateId, generateWalletKey} = require('../utils');
+const {generateValidationCode, generateId, generateWalletKey} = require('./utils/utils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
 async function UserLogin(){
@@ -78,6 +78,7 @@ async function UserLogin(){
             return {
                 status: "success",
                 sessionId: sessionId,
+                email: email,
                 walletKey: user.walletKey,
                 userInfo: user.userInfo,
                 userId: user.id
@@ -92,7 +93,6 @@ async function UserLogin(){
             reason: "invalid code"
         }
     }
-
     self.getUserValidationEmailCode = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         if(!user){
@@ -113,6 +113,9 @@ async function UserLogin(){
             }
             await self.resetLoginAttempts(email);
         }
+        user.validationEmailCode = generateValidationCode(5);
+        user.validationEmailCodeTimestamp = new Date().toISOString();
+        await persistence.updateUserLoginStatus(user.id, user);
         return {
             status: "success",
             code: user.validationEmailCode
@@ -186,5 +189,8 @@ module.exports = {
         return async function(globalUserId, email, command, ...args){
             return true;
         }
+    },
+    getDependencies: function(){
+        return ["StandardPersistence"];
     }
 }

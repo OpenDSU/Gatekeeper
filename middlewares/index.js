@@ -1,4 +1,4 @@
-const {getCookies, getEnclaveInstance} = require("../apiutils/utils");
+const {getCookies} = require("../apiutils/utils");
 
 async function authenticationMiddleware(req, res, next) {
     const skipAuth = ["generateAuthCode", "walletLogin", "userExists"];
@@ -8,13 +8,9 @@ async function authenticationMiddleware(req, res, next) {
         return next(); // Skip middleware for these routes
     }
     const cookies = getCookies(req);
-    if (cookies.walletKey && cookies.email) {
-        const enclaveInstance = await getEnclaveInstance();
-        let result = await $$.promisify(enclaveInstance.getRecord)($$.SYSTEM_IDENTIFIER, "auth_codes_table", cookies.email);
-        if (result && result.walletKey === cookies.walletKey) {
-            next();
-            return;
-        }
+    if (cookies.walletKey && cookies.email && cookies.userId) {
+        next();
+        return;
     }
     res.writeHead(401, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({operation: "unauthorized"}));

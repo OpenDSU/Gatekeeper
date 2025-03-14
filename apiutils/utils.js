@@ -13,32 +13,16 @@ function getVersionlessSSI(email, password) {
     return keySSISpace.createVersionlessSSI(undefined, path, crypto.deriveEncryptionKey(password, 1000));
 }
 
-function generateRandomCode(length) {
-    const openDSU = require('opendsu');
-    const resolver = openDSU.loadAPI("resolver");
-    const crypto = openDSU.loadAPI("crypto");
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const bytes = crypto.generateRandom(length)
-    let code = '';
-
-    for (let i = 0; i < length; i++) {
-        // Map each random byte to a character in the `chars` string
-        const randomIndex = bytes[i] % chars.length;
-        code += chars[randomIndex];
-    }
-
-    return code;
-}
-
 function validateEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 }
-function createAuthCookies(userId, email, walletKey, userInfo) {
+function createAuthCookies(userId, email, walletKey, userInfo, sessionId) {
     return [`userId=${userId}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`,
         `email=${email}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`,
         `walletKey=${walletKey}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`,
-        `userInfo=${JSON.stringify(userInfo)}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`]
+        `userInfo=${JSON.stringify(userInfo)}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`,
+        `sessionId=${sessionId}; HttpOnly; Secure; SameSite=Strict; Max-Age=${24 * 60 * 60}; Path=/`];
 }
 
 module.exports = {
