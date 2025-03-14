@@ -1,15 +1,18 @@
 const logger = $$.getLogger("apis", "auth");
 const path = require("path");
 const openDSU = require('opendsu');
+const system = openDSU.loadApi("system");
+const baseURL = system.getBaseURL();
 const resolver = openDSU.loadAPI("resolver");
 const utils = require("./../apiutils/utils");
 const USER_LOGIN_PLUGIN = "UserLogin";
 let clients = {};
-async function initAPIClient(userId, serverUrl){
+
+async function initAPIClient(userId, serverlessAPIId){
     if(clients[userId]){
         return clients[userId];
     }
-    let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, serverUrl, USER_LOGIN_PLUGIN);
+    let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `${baseURL}/proxy`, serverlessAPIId, USER_LOGIN_PLUGIN);
     await client.registerPlugin("StandardPersistence", path.join(__dirname, "..", "plugins", "StandardPersistence.js"));
     await client.registerPlugin(USER_LOGIN_PLUGIN, path.join(__dirname, "..", "plugins", "UserLogin.js"));
     clients[userId] = client;
@@ -21,7 +24,7 @@ const userExists = async function (req, res) {
         let {email} = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        let client = await initAPIClient(req.userId, req.serverlessAPIId);
         response = await client.userExists(email);
     } catch (err) {
         logger.debug(err.message);
@@ -43,7 +46,7 @@ const generateAuthCode = async function (req, res) {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
-    let client = await initAPIClient(req.userId, req.serverlessUrl);
+    let client = await initAPIClient(req.userId, req.serverlessAPIId);
 
     try {
         let {email, refererId} = authData;
@@ -99,7 +102,7 @@ const walletLogin = async (req, res) => {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
-    let client = await initAPIClient(req.userId, req.serverlessUrl);
+    let client = await initAPIClient(req.userId, req.serverlessAPIId);
     try {
         utils.validateEmail(loginData.email);
         let result = await client.authorizeUser(loginData.email, loginData.code);
@@ -124,7 +127,7 @@ const walletLogin = async (req, res) => {
 
 const walletLogout = async (req, res) => {
     try {
-        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        let client = await initAPIClient(req.userId, req.serverlessAPIId);
         let cookies = utils.getCookies(req);
         await client.logout(cookies.email);
         let clearedCookies = [];
@@ -145,7 +148,7 @@ const getUserInfo = async (req, res) => {
         let {email} = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        let client = await initAPIClient(req.userId, req.serverlessAPIId);
         let userInfo = await client.getUserInfo(email);
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify(userInfo));
@@ -171,7 +174,7 @@ const setUserInfo = async (req, res) => {
 
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        let client = await initAPIClient(req.userId, req.serverlessAPIId);
         await client.setUserInfo(email, data);
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({operation: "success"}));
