@@ -1,10 +1,11 @@
 require("./testInit/clean.js");
 
+let UserLogin;
 async function smokeTest() {
     await $$.clean();
     await $$.registerPlugin("StandardPersistence", "../../plugins/StandardPersistence.js");
     await $$.registerPlugin("UserLogin", "../../plugins/UserLogin.js");
-    const UserLogin = $$.loadPlugin("UserLogin");
+    UserLogin = $$.loadPlugin("UserLogin");
     const email = "test@test.com";
     let result = await UserLogin.userExists(email);
     if (!result.userExists) {
@@ -12,41 +13,60 @@ async function smokeTest() {
         console.log("User created", user);
 
         let userExists = await UserLogin.userExists(email);
-        console.assert(userExists, "userExists check failed");
-        let code = await UserLogin.getUserValidationEmailCode(email);
+        if(!userExists.userExists){
+            throw new Error("userExists check failed");
+        }
 
-        let sessionId = await UserLogin.authorizeUser(email, code);
-        console.assert(sessionId, "Login failed");
-        console.log("User Logged in, sessionId:", sessionId);
+        let validationResult = await UserLogin.getUserValidationEmailCode(email);
+        if(validationResult.status === "failed"){
+            throw new Error("get email validation code failed");
+        }
 
-        let authorized = await UserLogin.checkSessionId(email, sessionId);
-        console.assert(authorized, "SessionId check failed");
+        let authResult = await UserLogin.authorizeUser(email, validationResult.code);
+        if(authResult.status === "failed"){
+            throw new Error("Login failed");
+        }
+        console.log("User Logged in, sessionId:", authResult.sessionId);
 
-        await UserLogin.logout(email);
+        let authorized = await UserLogin.checkSessionId(email, authResult.sessionId);
+        if(authorized.status === "failed"){
+            throw new Error("SessionId check failed");
+        }
+
+        let logoutResult = await UserLogin.logout(email);
+        if(logoutResult.status === "failed"){
+            throw new Error("Logout failed");
+        }
         console.log("User logged out");
         let result = await UserLogin.checkSessionId(email, "");
-        console.assert(!result, "SessionId check failed");
+        if(result.status === "success"){
+            throw new Error("SessionId check after logout should have failed");
+        }
 
-        let userInfo = await UserLogin.getUserInfo(email);
-        console.assert(userInfo === undefined, "userInfo check failed");
-        userInfo = {};
-        userInfo.firstName = "John";
-        userInfo.lastName = "Doe";
-        userInfo.spaces = ["space1", "space2"];
-        userInfo.roles = {
+        let userInfoResult = await UserLogin.getUserInfo(email);
+        if(userInfoResult.status === "failed"){
+            throw new Error("getUserInfo failed");
+        }
+        let userInfoData = {};
+        userInfoData.firstName = "John";
+        userInfoData.lastName = "Doe";
+        userInfoData.spaces = ["space1", "space2"];
+        userInfoData.roles = {
             "space1": "owner",
             "space2": "read"
         }
-        await UserLogin.setUserInfo(email, userInfo);
+        await UserLogin.setUserInfo(email, userInfoData);
         let userInfoCheck = await UserLogin.getUserInfo(email);
-        console.assert(userInfoCheck === userInfo, "userInfo check failed");
+        if(userInfoCheck.userInfo !== userInfoData){
+            throw new Error("getUserInfo check failed");
+        }
+
         await UserLogin.shutDown();
     } else {
        throw new Error("User already exists");
     }
 }
 
-smokeTest().then(() => {
-}).catch(console.error);
+smokeTest();
 
 
