@@ -1,7 +1,7 @@
 const {getCookies, getEnclaveInstance} = require("../apiutils/utils");
 
 async function authenticationMiddleware(req, res, next) {
-    const skipAuth = ["generateAuthCode", "walletLogin", "accountExists"];
+    const skipAuth = ["generateAuthCode", "walletLogin", "userExists"];
     // Exclude specific routes
     const containsSubstring = skipAuth.some(substring => req.url.indexOf(substring) !== -1);
     if (containsSubstring) {
