@@ -123,14 +123,21 @@ const walletLogin = async (req, res) => {
 }
 
 const walletLogout = async (req, res) => {
-    let cookies = utils.getCookies(req);
-    let clearedCookies = [];
-    for(let cookie of Object.keys(cookies)){
-        clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
+    try {
+        let client = await initAPIClient(req.userId, req.serverlessUrl);
+        let cookies = utils.getCookies(req);
+        await client.logout(cookies.email);
+        let clearedCookies = [];
+        for(let cookie of Object.keys(cookies)){
+            clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
+        }
+        res.setHeader('Set-Cookie', clearedCookies);
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({operation: "success"}));
+    } catch (e) {
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: e.message}));
     }
-    res.setHeader('Set-Cookie', clearedCookies);
-    res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({operation: "success"}));
 }
 
 const getUserInfo = async (req, res) => {
