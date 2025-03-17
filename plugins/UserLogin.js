@@ -137,7 +137,7 @@ async function UserLogin(){
         let user = await persistence.getUserLoginStatus(email);
         return {
             status: "success",
-            userInfo: user.userInfo
+            userInfo: user.userInfo || {}
         };
     }
     self.setUserInfo = async function(email, userInfo){

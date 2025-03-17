@@ -21,6 +21,7 @@ module.exports = async function (server) {
         req.rootFolder = server.rootFolder;
         req.serverlessUrl = serverUrl;
         req.serverlessId = serverlessId;
+        req.serverRootFolder = server.rootFolder;
         const cookies = getCookies(req);
         if (cookies.userId) {
             req.userId = cookies.userId;

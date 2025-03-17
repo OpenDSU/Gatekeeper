@@ -8,9 +8,13 @@ async function authenticationMiddleware(req, res, next) {
         return next(); // Skip middleware for these routes
     }
     const cookies = getCookies(req);
-    if (cookies.walletKey && cookies.email) {
-        next();
-        return;
+    if (cookies.authKey) {
+        let apihub = require("apihub");
+        let secretsService = await apihub.getSecretsServiceInstanceAsync(req.serverRootFolder);
+        let decodedKey = decodeURIComponent(cookies.authKey);
+        if(await secretsService.validateAPIKey(decodedKey)){
+            return next();
+        }
     }
     res.writeHead(401, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({operation: "unauthorized"}));

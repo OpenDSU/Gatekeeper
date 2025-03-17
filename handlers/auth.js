@@ -6,7 +6,7 @@ const baseURL = system.getBaseURL();
 const resolver = openDSU.loadAPI("resolver");
 const utils = require("./../apiutils/utils");
 const USER_LOGIN_PLUGIN = "UserLogin";
-
+const apihub = require("apihub");
 async function initAPIClient(userId, serverlessId){
     let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `${baseURL}/proxy`, serverlessId, USER_LOGIN_PLUGIN);
     await client.registerPlugin("StandardPersistence", path.join(__dirname, "..", "plugins", "StandardPersistence.js"));
@@ -69,10 +69,9 @@ const generateAuthCode = async function (req, res) {
             return res.end(JSON.stringify(responseMessage));
         }
         //await client.loginEvent(req.userId, "FAIL", `Exceeded number of attempts`);
-        logger.debug(`Exceeded number of attempts in generateAuthCode: ${JSON.stringify(authData)}`);
         res.writeHead(403, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({
-            error: "Exceeded number of attempts",
+            error: result.reason,
             details: {
                 lockTime: result.lockTime
             }
@@ -102,7 +101,11 @@ const walletLogin = async (req, res) => {
         let result = await client.authorizeUser(loginData.email, loginData.code);
         if(result.status === "success"){
             //await client.loginEvent(result.userId, "SUCCESS");
-            let cookies = utils.createAuthCookies(result.userId,  result.email, result.walletKey, result.userInfo, result.sessionId);
+            const secretsService = await apihub.getSecretsServiceInstanceAsync(req.serverRootFolder);
+            let keyId = `${result.userId}_${result.email}`;
+            let authKey = await secretsService.generateAPIKeyAsync(keyId);
+            authKey = encodeURIComponent(authKey);
+            let cookies = utils.createAuthCookies(result.userId,  result.email, result.walletKey, result.sessionId, authKey);
             res.setHeader('Set-Cookie', cookies);
             res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({operation: "success"}));
