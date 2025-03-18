@@ -7,7 +7,7 @@ const utils = require("../utils/apiUtils");
 const USER_LOGIN_PLUGIN = "UserLogin";
 const apihub = require("apihub");
 async function initAPIClient(userId, serverlessId){
-    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `${baseURL}/proxy`, serverlessId, USER_LOGIN_PLUGIN);
+    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `${baseURL}`, serverlessId, USER_LOGIN_PLUGIN);
 }
 const userExists = async function (req, res) {
     let response;
