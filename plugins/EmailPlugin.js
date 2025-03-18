@@ -1,4 +1,3 @@
-const sgMail = require("@sendgrid/mail");
 
 async function EmailPlugin(){
     let self = {};

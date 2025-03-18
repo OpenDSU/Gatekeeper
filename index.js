@@ -1,7 +1,7 @@
 const path = require("path");
 const auth = require("./handlers/auth");
 const process = require("process");
-const {getCookies} = require("./apiutils/utils");
+const {getCookies} = require("./utils/apiUtils");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
 const {authenticationMiddleware, bodyReader} = require("./middlewares");
 const serverlessId = "coreClient";
@@ -11,7 +11,7 @@ module.exports = async function (server) {
 
     let serverUrl;
     setTimeout(async ()=>{
-        const serverlessAPI = await server.createServerlessAPI({urlPrefix:serverlessId});
+        const serverlessAPI = await server.createServerlessAPI({urlPrefix:serverlessId, storage:__dirname});
         serverUrl = serverlessAPI.getUrl();
         server.registerServerlessProcessUrl(serverlessId, serverUrl);
     },0);

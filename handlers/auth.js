@@ -1,17 +1,13 @@
 const logger = $$.getLogger("apis", "auth");
-const path = require("path");
 const openDSU = require('opendsu');
 const system = openDSU.loadApi("system");
 const baseURL = system.getBaseURL();
 const resolver = openDSU.loadAPI("resolver");
-const utils = require("./../apiutils/utils");
+const utils = require("../utils/apiUtils");
 const USER_LOGIN_PLUGIN = "UserLogin";
 const apihub = require("apihub");
 async function initAPIClient(userId, serverlessId){
-    let client = require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `${baseURL}/proxy`, serverlessId, USER_LOGIN_PLUGIN);
-    await client.registerPlugin("StandardPersistence", path.join(__dirname, "..", "plugins", "StandardPersistence.js"));
-    await client.registerPlugin(USER_LOGIN_PLUGIN, path.join(__dirname, "..", "plugins", "UserLogin.js"));
-    return client;
+    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, `${baseURL}/proxy`, serverlessId, USER_LOGIN_PLUGIN);
 }
 const userExists = async function (req, res) {
     let response;

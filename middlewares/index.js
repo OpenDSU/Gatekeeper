@@ -1,4 +1,4 @@
-const {getCookies} = require("../apiutils/utils");
+const {getCookies} = require("../utils/apiUtils");
 
 async function authenticationMiddleware(req, res, next) {
     const skipAuth = ["generateAuthCode", "walletLogin", "userExists"];

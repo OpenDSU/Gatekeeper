@@ -1,12 +1,12 @@
-const {generateValidationCode, generateId, generateWalletKey} = require('./utils/utils');
+const {generateValidationCode, generateId, generateWalletKey} = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
 async function UserLogin(){
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
     self.userExists = async function(email){
-        let user = await persistence.getUserLoginStatus(email);
-        if(user){
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if(userExists){
             return {
                 status: "success",
                 userExists: true
@@ -38,7 +38,7 @@ async function UserLogin(){
         }
     }
     self.authorizeUser = async function(email, code){
-        let userExists = await self.userExists(email);
+        let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
             return {
                 status: "failed",
@@ -94,7 +94,7 @@ async function UserLogin(){
         }
     }
     self.getUserValidationEmailCode = async function(email){
-        let user = await persistence.getUserLoginStatus(email);
+        let user = await persistence.hasUserLoginStatus(email);
         if(!user){
             user = await self.createUser(email);
             return {
@@ -103,6 +103,7 @@ async function UserLogin(){
                 walletKey: user.walletKey
             };
         }
+        user = await persistence.getUserLoginStatus(email);
         if (user.loginAttempts >= maxLoginAttempts) {
             if(user.lastLoginAttempt > new Date().getTime() - expiryTimeout){
                 return {
@@ -123,6 +124,13 @@ async function UserLogin(){
 
     };
     self.checkSessionId = async function(email, sessionId){
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return {
+                status: "failed",
+                reason: "user doesn't exist"
+            }
+        }
         let user = await persistence.getUserLoginStatus(email);
         if(user.sessionIds.includes(sessionId)){
             return {
@@ -134,6 +142,13 @@ async function UserLogin(){
         }
     }
     self.getUserInfo = async function(email){
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return {
+                status: "failed",
+                reason: "user doesn't exist"
+            }
+        }
         let user = await persistence.getUserLoginStatus(email);
         return {
             status: "success",
@@ -141,6 +156,13 @@ async function UserLogin(){
         };
     }
     self.setUserInfo = async function(email, userInfo){
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return {
+                status: "failed",
+                reason: "user doesn't exist"
+            }
+        }
         let user = await persistence.getUserLoginStatus(email);
         user.userInfo = userInfo;
         await persistence.updateUserLoginStatus(user.id, user);
