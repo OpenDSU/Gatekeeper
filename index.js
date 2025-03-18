@@ -4,22 +4,21 @@ const process = require("process");
 const {getCookies} = require("./utils/apiUtils");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
 const {authenticationMiddleware, bodyReader} = require("./middlewares");
-const serverlessId = "coreClient";
+const serverlessId = "auth";
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
     process.env.AUTH_LOGS_FOLDER = path.join(server.rootFolder, "external-volume", process.env.AUTH_LOGS_FOLDER);
 
     let serverUrl;
     setTimeout(async ()=>{
-        const serverlessAPI = await server.createServerlessAPI({urlPrefix:serverlessId, storage:__dirname});
+        const serverlessAPI = await server.createServerlessAPI({
+            urlPrefix: serverlessId,
+            storage: __dirname});
         serverUrl = serverlessAPI.getUrl();
         server.registerServerlessProcessUrl(serverlessId, serverUrl);
     },0);
 
     server.use(`${AUTH_API_PREFIX}/*`, async function (req, res, next) {
-        req.externalVolumePath = path.join(server.rootFolder, "external-volume");
-        req.rootFolder = server.rootFolder;
-        req.serverlessUrl = serverUrl;
         req.serverlessId = serverlessId;
         req.serverRootFolder = server.rootFolder;
         const cookies = getCookies(req);
@@ -29,7 +28,7 @@ module.exports = async function (server) {
             req.userId = "*";
         }
         next();
-    })
+    });
 
     server.use(`${AUTH_API_PREFIX}/*`, authenticationMiddleware);
 
