@@ -5,6 +5,7 @@ const {getCookies} = require("./utils/apiUtils");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
 const {authenticationMiddleware, bodyReader} = require("./middlewares");
 const serverlessId = "auth";
+const userPlugin = "UserLogin";
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
     process.env.AUTH_LOGS_FOLDER = path.join(server.rootFolder, "external-volume", process.env.AUTH_LOGS_FOLDER);
@@ -21,12 +22,7 @@ module.exports = async function (server) {
     server.use(`${AUTH_API_PREFIX}/*`, async function (req, res, next) {
         req.serverlessId = serverlessId;
         req.serverRootFolder = server.rootFolder;
-        const cookies = getCookies(req);
-        if (cookies.userId) {
-            req.userId = cookies.userId;
-        } else {
-            req.userId = "*";
-        }
+        req.userPlugin = userPlugin;
         next();
     });
 
