@@ -4,8 +4,9 @@ const system = openDSU.loadApi("system");
 const baseURL = system.getBaseURL();
 const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
-function initAPIClient(userId, serverlessId, userPlugin){
-    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, baseURL, serverlessId, userPlugin);
+const constants = require("../utils/constants");
+function initAPIClient(userId){
+    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, baseURL, constants.SERVERLESS_ID, constants.USER_PLUGIN);
 }
 const userExists = async function (req, res) {
     let response;
@@ -13,7 +14,7 @@ const userExists = async function (req, res) {
         let {email} = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = initAPIClient(req.userId, req.serverlessId, req.userPlugin);
+        let client = initAPIClient(req.userId);
         response = await client.userExists(email);
     } catch (err) {
         logger.debug(err.message);
@@ -35,7 +36,7 @@ const generateAuthCode = async function (req, res) {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
-    let client = initAPIClient(req.userId, req.serverlessId, req.userPlugin);
+    let client = initAPIClient(req.userId);
 
     try {
         let {email, refererId} = authData;
@@ -89,7 +90,7 @@ const walletLogin = async (req, res) => {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
-    let client = initAPIClient(req.userId, req.serverlessId, req.userPlugin);
+    let client = initAPIClient(req.userId);
     try {
         utils.validateEmail(loginData.email);
         let result = await client.authorizeUser(loginData.email, loginData.code);
@@ -114,7 +115,7 @@ const walletLogin = async (req, res) => {
 
 const walletLogout = async (req, res) => {
     try {
-        let client = initAPIClient(req.userId, req.serverlessId, req.userPlugin);
+        let client = initAPIClient(req.userId);
         let cookies = utils.getCookies(req);
         await client.logout(cookies.email);
         let clearedCookies = [];
@@ -135,7 +136,7 @@ const getUserInfo = async (req, res) => {
         let {email} = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = initAPIClient(req.userId, req.serverlessId, req.userPlugin);
+        let client = initAPIClient(req.userId);
         let result = await client.getUserInfo(email);
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify(result.userInfo));
@@ -162,7 +163,7 @@ const setUserInfo = async (req, res) => {
 
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = initAPIClient(req.userId, req.serverlessId, req.userPlugin);
+        let client = initAPIClient(req.userId);
         await client.setUserInfo(email, data);
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({operation: "success"}));

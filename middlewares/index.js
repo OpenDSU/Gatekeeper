@@ -1,5 +1,5 @@
 const {getCookies} = require("../utils/apiUtils");
-
+const constants = require("../utils/constants");
 async function authenticationMiddleware(req, res, next) {
     let cookies = getCookies(req);
     req.sessionId = cookies['sessionId'];
@@ -28,9 +28,7 @@ async function authenticationMiddleware(req, res, next) {
         let openDSU = require("opendsu");
         const system = openDSU.loadApi("system");
         const baseURL = system.getBaseURL();
-        let userPlugin = "UserLogin";
-        let serverlessId = "auth";
-        let client = openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, serverlessId, userPlugin);
+        let client = openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, constants.SERVERLESS_ID, constants.USER_PLUGIN);
         let response = await client.checkSessionId(req.email, req.sessionId);
         if(response.status === "success"){
             return next();
