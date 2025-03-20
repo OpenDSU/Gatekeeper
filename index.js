@@ -6,7 +6,6 @@ const {authenticationMiddleware, bodyReader} = require("./middlewares");
 const constants = require("./utils/constants");
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
-    process.env.AUTH_LOGS_FOLDER = path.join(server.rootFolder, "external-volume", process.env.AUTH_LOGS_FOLDER);
 
     let serverUrl;
     setTimeout(async ()=>{
