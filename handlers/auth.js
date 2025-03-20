@@ -39,9 +39,9 @@ const generateAuthCode = async function (req, res) {
     let client = initAPIClient(req.userId);
 
     try {
-        let {email, refererId} = authData;
+        let {email, name} = authData;
         utils.validateEmail(email);
-        let result = await client.getUserValidationEmailCode(email);
+        let result = await client.getUserValidationEmailCode(email, name);
         if (result.status === "success") {
             if(result.walletKey){
                 const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);

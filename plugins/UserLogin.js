@@ -4,6 +4,7 @@ const maxLoginAttempts = 5;
 async function UserLogin(){
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
+    let CreditManager = await $$.loadPlugin("CreditManager");
     self.userExists = async function(email){
         let userExists = await persistence.hasUserLoginStatus(email);
         if(userExists){
@@ -17,10 +18,13 @@ async function UserLogin(){
             userExists: false
         }
     }
-    self.createUser = async function (email) {
+    self.createUser = async function (email, name) {
         let validationEmailCode = generateValidationCode(5);
         let walletKey = generateWalletKey();
+        name = name || email.split("@")[0];
+        let userAsset = await CreditManager.addUser(email, name);
         let user = await persistence.createUserLoginStatus({
+            globalUserId: userAsset.id,
             email: email,
             validationEmailCode: validationEmailCode,
             validationEmailCodeTimestamp: new Date().toISOString(),
@@ -93,10 +97,10 @@ async function UserLogin(){
             reason: "invalid code"
         }
     }
-    self.getUserValidationEmailCode = async function(email){
+    self.getUserValidationEmailCode = async function(email, name){
         let user = await persistence.hasUserLoginStatus(email);
         if(!user){
-            user = await self.createUser(email);
+            user = await self.createUser(email, name);
             return {
                 status: "success",
                 code: user.validationEmailCode,
@@ -213,6 +217,6 @@ module.exports = {
         }
     },
     getDependencies: function(){
-        return ["StandardPersistence"];
+        return ["StandardPersistence", "CreditManager"];
     }
 }

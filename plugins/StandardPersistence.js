@@ -14,7 +14,13 @@ async function createStandardPersistencePlugin(){
             validationEmailCodeTimestamp: "string"
         },
     });
+    await persistence.configureAssets(
+        {
+            "user": ["email", "name", "loginEvent", "level", "lockedAmountUntilValidation"],
+        }
+    );
 
+    await persistence.createIndex("userValidation", "userId");
     await persistence.createIndex("userLoginStatus", "email");
 
     return persistence;
