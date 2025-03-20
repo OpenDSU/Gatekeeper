@@ -85,7 +85,7 @@ async function UserLogin(){
                 email: email,
                 walletKey: user.walletKey,
                 userInfo: user.userInfo,
-                userId: user.id
+                userId: user.globalUserId
             };
         }
 
