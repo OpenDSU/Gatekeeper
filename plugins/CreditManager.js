@@ -7,24 +7,8 @@ let computePercent = coreUtil.computePercent;
 async function CreditManager() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
-    let settings = {
-        defaultRewardNewUser: 0.001,
-        unlockedPoints: 0.001,
-        initialTokenPrice: 1,
-        firstUsersRewards: ["100000:10000", "5000000:1000", "1000000:100"],
-    };
+
     let tickInterval = undefined;
-
-    let thresholdsForRewardingNewUsers = parseThresholds(settings.firstUsersRewards);
-
-    self.configure = async function (newSettings) {
-        Object.assign(settings, newSettings);
-        function ensureDefaultSettings(name, defaultValue) {
-            if (!settings[name]) {
-                settings[name] = defaultValue;
-            }
-        }
-    }
 
     self.validateUser = async function (id, level) {
         let user = await persistence.getUser(id);
@@ -104,21 +88,6 @@ async function CreditManager() {
         await persistence.rewardFounder(userID, amount, "Founder reward");
     }
 
-    function getRewardForNewUser(userNumber) {
-        for (let i = 0; i < thresholdsForRewardingNewUsers.length; i++) {
-            if (userNumber <= thresholdsForRewardingNewUsers[i].threshold) {
-                return thresholdsForRewardingNewUsers[i].value;
-            }
-        }
-        return settings.defaultRewardForNewUser;
-    }
-
-    async function rewardAndLock(userId, availableAmount, lockAmount, reason) {
-        await persistence.rewardUser(userId, availableAmount + lockAmount, reason);
-        await persistence.lockPoints(userId, lockAmount, "Locking until user validation");
-        return true;
-    }
-
     self.addUser = async function (email, name) {
         let user = await persistence.createUser({
             email,
@@ -127,15 +96,6 @@ async function CreditManager() {
             lockedAmountUntilValidation: 0,
         });
         let userOrder = user.accountNumber;
-
-        let rewardForNewUser = getRewardForNewUser(userOrder);
-        rewardForNewUser = rewardForNewUser > 0 ? rewardForNewUser : settings.defaultRewardForNewUser;
-        await rewardAndLock(user.id, settings.unlockedPoints, rewardForNewUser - settings.unlockedPoints, "New user reward of " + rewardForNewUser + " points");
-
-        let lockedAmountUntilValidation = rewardForNewUser - settings.unlockedPoints;
-        lockedAmountUntilValidation = lockedAmountUntilValidation > 0 ? lockedAmountUntilValidation : 0;
-
-        await persistence.updateUser(user.id, {lockedAmountUntilValidation});
         return user;
     }
 
@@ -166,17 +126,6 @@ async function CreditManager() {
 
     self.lockedBalance = async function (id) {
         return await persistence.getLockedBalance(id);
-    }
-
-    self.accountStatus = async function (name) {
-        let availablePoints = await self.balance(name);
-        let lockedPoints = await self.lockedBalance(name);
-        let estimatedValue = (availablePoints + lockedPoints) * settings.initialTokenPrice;
-        return {availablePoints, lockedPoints, estimatedValue};
-    }
-
-    self.getExchangeRate = function () {
-        return settings.initialTokenPrice;
     }
 
     self.getSystemAvailablePoints = async function () {
@@ -228,7 +177,7 @@ module.exports = {
             return true; // Implement proper permission logic here
         }
     },
-    getDependencies: function (){
+    getDependencies: function () {
         return ["StandardPersistence"];
     }
 }
