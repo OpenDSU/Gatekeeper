@@ -3,7 +3,7 @@ const constants = require("../utils/constants");
 async function authenticationMiddleware(req, res, next) {
     let cookies = getCookies(req);
     req.sessionId = cookies['sessionId'];
-    req.email = cookies['email'];
+    req.email = decodeURIComponent(cookies['email']);
     req.walletKey = cookies['walletKey'];
     if (cookies.userId) {
         req.userId = cookies.userId;

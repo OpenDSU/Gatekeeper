@@ -72,6 +72,7 @@ async function UserLogin(){
             }
 
             user.validationEmailCode = undefined;
+            user.validationEmailCodeTimestamp = undefined;
             let sessionId = generateId(16);
             if(!user.sessionIds){
                 user.sessionIds = [];
