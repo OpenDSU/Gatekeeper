@@ -1,5 +1,6 @@
 const persisto = require("../Persisto");
-async function createStandardPersistencePlugin(){
+
+async function createStandardPersistencePlugin() {
     let persistence = await persisto.initialisePersisto();
     persistence.configureTypes({
         userLoginStatus: {
@@ -16,7 +17,7 @@ async function createStandardPersistencePlugin(){
     });
     await persistence.configureAssets(
         {
-            "user": ["email", "name", "loginEvent", "level", "lockedAmountUntilValidation"],
+            "user": ["email", "name", "loginEvent", "level", "invitingUserID", "lockedAmountUntilValidation", "lockedAmountForInvitingUser"],
         }
     );
 
@@ -30,13 +31,13 @@ let singleton = null;
 
 module.exports = {
     getInstance: async function () {
-        if(!singleton){
+        if (!singleton) {
             singleton = await createStandardPersistencePlugin();
         }
         return singleton;
     },
-    getAllow: function(){
-        return async function(globalUserId, email, command, ...args){
+    getAllow: function () {
+        return async function (globalUserId, email, command, ...args) {
             return false;
         }
     }

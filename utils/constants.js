@@ -1,4 +1,5 @@
 module.exports = {
-    SERVERLESS_ID: "auth",
+    SERVERLESS_ID: "gatekeeper",
     USER_PLUGIN: "UserLogin",
+    CREDIT_MANAGER: "CreditManager"
 }

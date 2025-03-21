@@ -1,4 +1,5 @@
 const logger = $$.getLogger("apis", "auth");
+const process = require("process");
 const openDSU = require('opendsu');
 const system = openDSU.loadApi("system");
 const baseURL = system.getBaseURL();
@@ -6,7 +7,7 @@ const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 function initAPIClient(userId){
-    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, baseURL, constants.SERVERLESS_ID, constants.USER_PLUGIN);
+    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, baseURL,  process.env.SERVERLESS_ID, constants.USER_PLUGIN);
 }
 const userExists = async function (req, res) {
     let response;
@@ -173,6 +174,7 @@ const setUserInfo = async (req, res) => {
         res.end(JSON.stringify({error: e.message}));
     }
 }
+
 module.exports = {
     generateAuthCode,
     walletLogin,

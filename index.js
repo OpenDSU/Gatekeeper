@@ -10,13 +10,17 @@ module.exports = async function (server) {
         console.error("SERVERLESS_STORAGE is missing, defaults to 'external-volume/appStorage'");
         process.env.SERVERLESS_STORAGE = path.join(server.rootFolder, "external-volume", "appStorage");
     }
+    if(!process.env.SERVERLESS_ID){
+        console.error("SERVERLESS_ID is missing setting default - gatekeeper");
+        process.env.SERVERLESS_ID = constants.SERVERLESS_ID;
+    }
     let serverUrl;
     setTimeout(async ()=>{
         const serverlessAPI = await server.createServerlessAPI({
-            urlPrefix: constants.SERVERLESS_ID,
+            urlPrefix: process.env.SERVERLESS_ID,
             storage: process.env.SERVERLESS_STORAGE});
         serverUrl = serverlessAPI.getUrl();
-        server.registerServerlessProcessUrl(constants.SERVERLESS_ID, serverUrl);
+        server.registerServerlessProcessUrl(process.env.SERVERLESS_ID, serverUrl);
     },0);
 
     server.use(`${AUTH_API_PREFIX}/*`, async function (req, res, next) {

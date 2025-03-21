@@ -5,6 +5,7 @@ async function UserLogin(){
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
     let CreditManager = await $$.loadPlugin("CreditManager");
+
     self.userExists = async function(email){
         let userExists = await persistence.hasUserLoginStatus(email);
         if(userExists){
