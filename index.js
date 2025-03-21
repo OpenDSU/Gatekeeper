@@ -6,12 +6,15 @@ const {authenticationMiddleware, bodyReader} = require("./middlewares");
 const constants = require("./utils/constants");
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
-
+    if(!process.env.SERVERLESS_STORAGE){
+        console.error("SERVERLESS_STORAGE is missing, defaults to 'external-volume/appStorage'");
+        process.env.SERVERLESS_STORAGE = path.join(server.rootFolder, "external-volume", "appStorage");
+    }
     let serverUrl;
     setTimeout(async ()=>{
         const serverlessAPI = await server.createServerlessAPI({
             urlPrefix: constants.SERVERLESS_ID,
-            storage: __dirname});
+            storage: process.env.SERVERLESS_STORAGE});
         serverUrl = serverlessAPI.getUrl();
         server.registerServerlessProcessUrl(constants.SERVERLESS_ID, serverUrl);
     },0);

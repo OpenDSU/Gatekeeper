@@ -7,7 +7,7 @@ let computePercent = coreUtil.computePercent;
 async function CreditManager() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
-
+    let AppSpecificPlugin = await $$.loadPlugin("AppSpecificPlugin");
     let tickInterval = undefined;
 
     self.validateUser = async function (id, level) {
@@ -88,14 +88,14 @@ async function CreditManager() {
         await persistence.rewardFounder(userID, amount, "Founder reward");
     }
 
-    self.addUser = async function (email, name) {
+    self.addUser = async function (email, name, referrerId) {
         let user = await persistence.createUser({
             email,
             name,
             level: 0,
             lockedAmountUntilValidation: 0,
         });
-        let userOrder = user.accountNumber;
+        await AppSpecificPlugin.rewardUser(user, referrerId);
         return user;
     }
 
