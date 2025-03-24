@@ -178,6 +178,6 @@ module.exports = {
         }
     },
     getDependencies: function () {
-        return ["StandardPersistence"];
+        return ["StandardPersistence", "AppSpecificPlugin"];
     }
 }
