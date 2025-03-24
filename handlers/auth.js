@@ -118,7 +118,8 @@ const walletLogout = async (req, res) => {
     try {
         let client = initAPIClient(req.userId);
         let cookies = utils.getCookies(req);
-        await client.logout(cookies.email);
+        let email = decodeURIComponent(cookies.email);
+        await client.logout(email);
         let clearedCookies = [];
         for(let cookie of Object.keys(cookies)){
             clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
