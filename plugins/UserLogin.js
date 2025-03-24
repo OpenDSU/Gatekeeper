@@ -35,8 +35,8 @@ async function UserLogin(){
         return user;
     }
     self.logout = async function(email){
+        //delete sessionObject here
         let user = await persistence.getUserLoginStatus(email);
-        user.sessionIds = [];
         await persistence.updateUserLoginStatus(user.id, user);
         return {
             status: "success"
@@ -145,15 +145,14 @@ async function UserLogin(){
                 reason: "user doesn't exist"
             }
         }
-        let user = await persistence.getUserLoginStatus(email);
-        if(user.sessionIds.includes(sessionId)){
-            return {
-                status: "success",
-                globalUserId: user.globalUserId,
-                email: user.email,
-                walletKey: user.walletKey
-            };
-        }
+        let user = await persistence.getUserLoginStatus(session.userLoginId);
+        return {
+            status: "success",
+            globalUserId: user.globalUserId,
+            email: user.email,
+            walletKey: user.walletKey
+        };
+
     }
     self.getUserInfo = async function(email){
         let userExists = await persistence.hasUserLoginStatus(email);
