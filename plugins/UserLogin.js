@@ -75,10 +75,10 @@ async function UserLogin(){
             user.validationEmailCode = undefined;
             user.validationEmailCodeTimestamp = undefined;
             let sessionId = generateId(16);
-            if(!user.sessionIds){
-                user.sessionIds = [];
-            }
-            user.sessionIds.push(sessionId);
+            let session = await persistence.createSession({
+                userLoginId: user.id,
+                sessionId: sessionId
+            });
             user.loginAttempts = 0;
             await persistence.updateUserLoginStatus(user.id, user);
             return {
@@ -129,8 +129,16 @@ async function UserLogin(){
         };
 
     };
-    self.checkSessionId = async function(email, sessionId){
-        let userExists = await persistence.hasUserLoginStatus(email);
+    self.checkSessionId = async function(sessionId){
+        let sessionExists = await persistence.hasSession(sessionId);
+        if(!sessionExists){
+            return {
+                status: "failed",
+                reason: "session does not exist"
+            }
+        }
+        let session = await persistence.getSession(sessionId);
+        let userExists = await persistence.hasUserLoginStatus(session.userLoginId);
         if (!userExists) {
             return {
                 status: "failed",
@@ -140,11 +148,11 @@ async function UserLogin(){
         let user = await persistence.getUserLoginStatus(email);
         if(user.sessionIds.includes(sessionId)){
             return {
-                status: "success"
+                status: "success",
+                globalUserId: user.globalUserId,
+                email: user.email,
+                walletKey: user.walletKey
             };
-        }
-        return {
-            status: "failed"
         }
     }
     self.getUserInfo = async function(email){

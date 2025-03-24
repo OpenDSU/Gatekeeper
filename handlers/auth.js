@@ -7,7 +7,7 @@ const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 function initAPIClient(userId){
-    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId, baseURL,  process.env.SERVERLESS_ID, constants.USER_PLUGIN);
+    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId || "*", baseURL,  process.env.SERVERLESS_ID, constants.USER_PLUGIN);
 }
 const userExists = async function (req, res) {
     let response;
@@ -134,7 +134,10 @@ const walletLogout = async (req, res) => {
 
 const getUserInfo = async (req, res) => {
     try {
-        let {email} = req.params;
+        let {email} = req.query;
+        if(!email){
+            email = req.email;
+        }
         email = decodeURIComponent(email);
         utils.validateEmail(email);
         let client = initAPIClient(req.userId);
@@ -151,7 +154,10 @@ const getUserInfo = async (req, res) => {
 
 const setUserInfo = async (req, res) => {
     try {
-        let {email} = req.params;
+        let {email} = req.query;
+        if(!email){
+            email = req.email;
+        }
         let data;
         try {
             data = JSON.parse(req.body);

@@ -14,6 +14,10 @@ async function createStandardPersistencePlugin() {
             lastLoginAttempt: "string",
             validationEmailCodeTimestamp: "string"
         },
+        session: {
+            userLoginId: "string",
+            sessionId: "string",
+        }
     });
     await persistence.configureAssets(
         {
@@ -23,6 +27,7 @@ async function createStandardPersistencePlugin() {
 
     await persistence.createIndex("userValidation", "userId");
     await persistence.createIndex("userLoginStatus", "email");
+    await persistence.createIndex("session", "sessionId");
 
     return persistence;
 }
