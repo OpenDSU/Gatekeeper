@@ -34,10 +34,16 @@ async function UserLogin(){
         user.status = "success";
         return user;
     }
-    self.logout = async function(email){
+    self.logout = async function(sessionId){
         //delete sessionObject here
-        let user = await persistence.getUserLoginStatus(email);
-        await persistence.updateUserLoginStatus(user.id, user);
+        let sessionExists = await persistence.hasSession(sessionId);
+        if(!sessionExists){
+            return {
+                status: "failed",
+                reason: "session does not exist"
+            }
+        }
+        await persistence.deleteSession(sessionId);
         return {
             status: "success"
         }
