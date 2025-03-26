@@ -40,9 +40,9 @@ const generateAuthCode = async function (req, res) {
     let client = await initAPIClient(req.userId, constants.USER_PLUGIN);
 
     try {
-        let {email, name} = authData;
+        let {email, name, referrerId} = authData;
         utils.validateEmail(email);
-        let result = await client.getUserValidationEmailCode(email, name);
+        let result = await client.getUserValidationEmailCode(email, name, referrerId);
         if (result.status === "success") {
             if(result.walletKey){
                 const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
@@ -50,7 +50,7 @@ const generateAuthCode = async function (req, res) {
                 let dsu = await $$.promisify(resolver.loadDSU)(versionlessSSI);
             }
             let responseMessage = {result: "success"};
-            if (req.headers.origin === "http://localhost:8080") {
+            if (req.headers.origin !== "http://localhost:8080") {
                 responseMessage.code = result.code;
             } else {
                 let emailClient = await initAPIClient(req.userId, constants.EMAIL_PLUGIN);

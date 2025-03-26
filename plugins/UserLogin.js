@@ -19,11 +19,11 @@ async function UserLogin(){
             userExists: false
         }
     }
-    self.createUser = async function (email, name) {
+    self.createUser = async function (email, name, referrerId) {
         let validationEmailCode = generateValidationCode(5);
         let walletKey = generateWalletKey();
         name = name || email.split("@")[0];
-        let userAsset = await CreditManager.addUser(email, name);
+        let userAsset = await CreditManager.addUser(email, name, referrerId);
         let user = await persistence.createUserLoginStatus({
             globalUserId: userAsset.id,
             email: email,
@@ -105,10 +105,10 @@ async function UserLogin(){
             reason: "invalid code"
         }
     }
-    self.getUserValidationEmailCode = async function(email, name){
+    self.getUserValidationEmailCode = async function(email, name, referrerId){
         let user = await persistence.hasUserLoginStatus(email);
         if(!user){
-            user = await self.createUser(email, name);
+            user = await self.createUser(email, name, referrerId);
             return {
                 status: "success",
                 code: user.validationEmailCode,
