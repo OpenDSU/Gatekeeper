@@ -50,7 +50,7 @@ const generateAuthCode = async function (req, res) {
                 let dsu = await $$.promisify(resolver.loadDSU)(versionlessSSI);
             }
             let responseMessage = {result: "success"};
-            if (req.headers.origin !== "http://localhost:8080") {
+            if (req.headers.origin === "http://localhost:8080") {
                 responseMessage.code = result.code;
             } else {
                 let emailClient = initAPIClient(req.userId, constants.EMAIL_PLUGIN);
