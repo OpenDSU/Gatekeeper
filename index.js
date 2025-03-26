@@ -18,7 +18,9 @@ module.exports = async function (server) {
     setTimeout(async ()=>{
         const serverlessAPI = await server.createServerlessAPI({
             urlPrefix: process.env.SERVERLESS_ID,
-            storage: process.env.SERVERLESS_STORAGE});
+            storage: process.env.SERVERLESS_STORAGE,
+            env: process.env,
+        });
         serverUrl = serverlessAPI.getUrl();
         server.registerServerlessProcessUrl(process.env.SERVERLESS_ID, serverUrl);
     },0);
