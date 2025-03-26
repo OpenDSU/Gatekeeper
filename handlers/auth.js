@@ -6,8 +6,8 @@ const baseURL = system.getBaseURL();
 const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
-function initAPIClient(userId, pluginName){
-    return require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId || "*", baseURL,  process.env.SERVERLESS_ID, pluginName);
+async function initAPIClient(userId, pluginName){
+    return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(userId || "*", baseURL,  process.env.SERVERLESS_ID, pluginName);
 }
 const userExists = async function (req, res) {
     let response;
@@ -15,7 +15,7 @@ const userExists = async function (req, res) {
         let {email} = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = initAPIClient(req.userId, constants.USER_PLUGIN);
+        let client = await initAPIClient(req.userId, constants.USER_PLUGIN);
         response = await client.userExists(email);
     } catch (err) {
         logger.debug(err.message);
@@ -37,7 +37,7 @@ const generateAuthCode = async function (req, res) {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
-    let client = initAPIClient(req.userId, constants.USER_PLUGIN);
+    let client = await initAPIClient(req.userId, constants.USER_PLUGIN);
 
     try {
         let {email, name} = authData;
@@ -53,7 +53,7 @@ const generateAuthCode = async function (req, res) {
             if (req.headers.origin === "http://localhost:8080") {
                 responseMessage.code = result.code;
             } else {
-                let emailClient = initAPIClient(req.userId, constants.EMAIL_PLUGIN);
+                let emailClient = await initAPIClient(req.userId, constants.EMAIL_PLUGIN);
                 let subject = "Your authentication code";
                 let text = `Your authentication code is: ${result.code}`;
                 let html = `Your authentication code is: <strong>${result.code}</strong>`;
@@ -89,7 +89,7 @@ const walletLogin = async (req, res) => {
         res.end(JSON.stringify({error: "Wrong data"}));
         return;
     }
-    let client = initAPIClient(req.userId, constants.USER_PLUGIN);
+    let client = await initAPIClient(req.userId, constants.USER_PLUGIN);
     try {
         utils.validateEmail(loginData.email);
         let result = await client.authorizeUser(loginData.email, loginData.code);
@@ -114,7 +114,7 @@ const walletLogin = async (req, res) => {
 
 const walletLogout = async (req, res) => {
     try {
-        let client = initAPIClient(req.userId, constants.USER_PLUGIN);
+        let client = await initAPIClient(req.userId, constants.USER_PLUGIN);
         let cookies = utils.getCookies(req);
         await client.logout(cookies.sessionId);
         let clearedCookies = [];
@@ -138,7 +138,7 @@ const getUserInfo = async (req, res) => {
         }
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = initAPIClient(req.userId, constants.USER_PLUGIN);
+        let client = await initAPIClient(req.userId, constants.USER_PLUGIN);
         let result = await client.getUserInfo(email);
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify(result.userInfo));
@@ -168,7 +168,7 @@ const setUserInfo = async (req, res) => {
 
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        let client = initAPIClient(req.userId, constants.USER_PLUGIN);
+        let client = await initAPIClient(req.userId, constants.USER_PLUGIN);
         await client.setUserInfo(email, data);
         res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({operation: "success"}));

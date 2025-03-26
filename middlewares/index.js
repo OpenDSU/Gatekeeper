@@ -15,7 +15,7 @@ async function authenticationMiddleware(req, res, next) {
     let openDSU = require("opendsu");
     const system = openDSU.loadApi("system");
     const baseURL = system.getBaseURL();
-    let client = openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL,  process.env.SERVERLESS_ID , constants.USER_PLUGIN);
+    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL,  process.env.SERVERLESS_ID , constants.USER_PLUGIN);
     let response = await client.checkSessionId(req.sessionId);
     if(response.status === "success"){
         req.userId = response.globalUserId;
