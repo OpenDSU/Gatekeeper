@@ -19,6 +19,7 @@ async function UserLogin(){
             userExists: false
         }
     }
+
     self.createUser = async function (email, name, referrerId) {
         let validationEmailCode = generateValidationCode(5);
         let walletKey = generateWalletKey();
@@ -34,6 +35,7 @@ async function UserLogin(){
         user.status = "success";
         return user;
     }
+
     self.logout = async function(sessionId){
         //delete sessionObject here
         let sessionExists = await persistence.hasSession(sessionId);
@@ -48,6 +50,7 @@ async function UserLogin(){
             status: "success"
         }
     }
+
     self.authorizeUser = async function(email, code){
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
@@ -160,6 +163,7 @@ async function UserLogin(){
         };
 
     }
+
     self.getUserInfo = async function(email){
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
@@ -174,6 +178,7 @@ async function UserLogin(){
             userInfo: user.userInfo || {}
         };
     }
+
     self.setUserInfo = async function(email, userInfo){
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
@@ -189,6 +194,7 @@ async function UserLogin(){
             status: "success"
         }
     }
+
     self.incrementLoginAttempts = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         if(!user.loginAttempts){
@@ -200,6 +206,7 @@ async function UserLogin(){
             status: "success"
         }
     }
+
     self.resetLoginAttempts = async function(email){
         let user = await persistence.getUserLoginStatus(email);
         user.loginAttempts = 0;
