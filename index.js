@@ -3,6 +3,7 @@ const auth = require("./handlers/auth");
 const process = require("process");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
 const {authenticationMiddleware, bodyReader} = require("./middlewares");
+const {getCookies} = require("./utils/apiUtils");
 const constants = require("./utils/constants");
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
@@ -24,15 +25,16 @@ module.exports = async function (server) {
         serverUrl = serverlessAPI.getUrl();
         server.registerServerlessProcessUrl(process.env.SERVERLESS_ID, serverUrl);
     },0);
+    server.use(`/proxy/*`, bodyReader);
+    server.use(`/proxy/*`, authenticationMiddleware);
 
-    server.use(`${AUTH_API_PREFIX}/*`, async function (req, res, next) {
-        req.serverRootFolder = server.rootFolder;
+    server.use(`${AUTH_API_PREFIX}/*`, (req, res, next) => {
+        let cookies = getCookies(req);
+        req.sessionId = cookies['sessionId'];
+        req.userId = cookies['userId'];
+        req.walletKey = cookies['walletKey'];
         next();
     });
-
-    server.use(`${AUTH_API_PREFIX}/*`, authenticationMiddleware);
-
-
     server.get(`${AUTH_API_PREFIX}/userExists/:email`, auth.userExists);
     server.get(`${AUTH_API_PREFIX}/getInfo`, auth.getUserInfo);
 

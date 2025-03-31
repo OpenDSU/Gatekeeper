@@ -5,17 +5,31 @@ async function authenticationMiddleware(req, res, next) {
     let cookies = getCookies(req);
     req.sessionId = cookies['sessionId'];
 
-    const skipAuth = ["generateAuthCode", "walletLogin", "userExists"];
-    // Exclude specific routes
+    const skipAuth = ["ready"];
     const containsSubstring = skipAuth.some(substring => req.url.indexOf(substring) !== -1);
     if (containsSubstring) {
-        return next(); // Skip middleware for these routes
+        return next();
+    }
+
+    const whitelistMethods = ["userExists", "checkSessionId", "getUserValidationEmailCode", "authorizeUser"]
+    if(req.body){
+        let parsedBody = JSON.parse(req.body);
+        if(parsedBody.options.authToken){
+            if(parsedBody.options.authToken === process.env.SSO_SECRETS_ENCRYPTION_KEY){
+                return next();
+            }
+        }
+        for(let method of whitelistMethods){
+            if(parsedBody.name === method){
+                return next();
+            }
+        }
     }
 
     let openDSU = require("opendsu");
     const system = openDSU.loadApi("system");
     const baseURL = system.getBaseURL();
-    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL,  process.env.SERVERLESS_ID , constants.USER_PLUGIN);
+    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL,  process.env.SERVERLESS_ID , constants.USER_PLUGIN, "",{authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY});
     let response = await client.checkSessionId(req.sessionId);
     if(response.status === "success"){
         req.userId = response.globalUserId;
