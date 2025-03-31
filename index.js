@@ -33,6 +33,7 @@ module.exports = async function (server) {
         req.sessionId = cookies['sessionId'];
         req.userId = cookies['userId'];
         req.walletKey = cookies['walletKey'];
+        req.email = cookies['email'];
         next();
     });
     server.get(`${AUTH_API_PREFIX}/userExists/:email`, auth.userExists);
