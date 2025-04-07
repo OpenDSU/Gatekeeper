@@ -1,4 +1,4 @@
-const persisto = require("../Persisto");
+const persisto = require("../Persisto/index.cjs");
 
 async function createStandardPersistencePlugin() {
     let persistence = await persisto.initialisePersisto();
