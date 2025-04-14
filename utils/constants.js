@@ -3,4 +3,5 @@ module.exports = {
     USER_PLUGIN: "UserLogin",
     CREDIT_MANAGER: "CreditManager",
     EMAIL_PLUGIN: "EmailPlugin",
+    AUDIT_PLUGIN: "AuditPlugin"
 }
