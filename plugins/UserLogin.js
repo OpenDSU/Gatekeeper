@@ -5,13 +5,47 @@ async function UserLogin(){
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
     let CreditManager = await $$.loadPlugin("CreditManager");
-
+    const {verifyRegistrationResponse, verifyAssertionResponse} = require("../passkey/serverSideWebauthn");
     self.userExists = async function(email){
         let userExists = await persistence.hasUserLoginStatus(email);
-        if(userExists){
+        if (userExists) {
+            let user = await persistence.getUserLoginStatus(email);
+            if (user.authType === "passkey") {
+                // passkey login flow start
+                const parsedCredential = JSON.parse(user.validationEmailCode);
+            
+                const allowCredentials = [{
+                    type: 'public-key',
+                    id: parsedCredential.id,
+                }];
+
+                const challenge = require("crypto").randomBytes(32).toString("base64url");
+                const loginChallengeKey = `login_${user.id}_${Date.now()}`;
+
+                const publicKeyCredentialRequestOptions = {
+                    challenge: challenge,
+                    allowCredentials: allowCredentials,
+                    rpId: process.env.RP_ID,
+                    userVerification: 'required',
+                    timeout: 60000,
+                };
+
+                user.challenge = challenge.toString('base64url');
+                user.loginChallengeKey = loginChallengeKey;
+                await persistence.updateUserLoginStatus(user.id, user);
+
+                return {
+                    status: "success",
+                    userExists: true,
+                    publicKeyCredentialRequestOptions: JSON.stringify(publicKeyCredentialRequestOptions),
+                    loginChallengeKey: loginChallengeKey,
+                    authType: user.authType
+                }
+            }
             return {
                 status: "success",
-                userExists: true
+                userExists: true,
+                authType: user.authType
             }
         }
         return {
@@ -20,17 +54,36 @@ async function UserLogin(){
         }
     }
 
-    self.createUser = async function (email, name, referrerId) {
-        let validationEmailCode = generateValidationCode(5);
+    self.createUser = async function (email, name, referrerId, authType, validationEmailCode) {
         let walletKey = generateWalletKey();
         name = name || email.split("@")[0];
         let userAsset = await CreditManager.addUser(email, name, referrerId);
+        authType = authType || "email";
+        if (authType === "email") {
+            validationEmailCode = generateValidationCode(5);
+        } else {
+            const credentialInfo = await verifyRegistrationResponse(
+                validationEmailCode,
+                undefined,
+                undefined,
+                undefined,
+                false
+            );
+            validationEmailCode = JSON.stringify({
+                publicKey: credentialInfo.credentialPublicKey.toString('base64url'),
+                aaguid: credentialInfo.aaguid.toString('base64url'),
+                id: credentialInfo.credentialId.toString('base64url'),
+                fmt: credentialInfo.attestationFormat,
+                count: credentialInfo.signCount
+            });
+        }
         let user = await persistence.createUserLoginStatus({
             globalUserId: userAsset.id,
             email: email,
             validationEmailCode: validationEmailCode,
             validationEmailCodeTimestamp: new Date().toISOString(),
-            walletKey: walletKey
+            walletKey: walletKey,
+            authType: authType
         });
         user.status = "success";
         return user;
@@ -73,6 +126,15 @@ async function UserLogin(){
                 lockTime: user.lastLoginAttempt + expiryTimeout - now
             }
         }
+        if(user.authType === "passkey"){
+            // passkey login end
+            // code contains passkey
+            // verify passkey
+            return {
+                status: "success",
+                userExists: true,
+            }
+        }
         if(user.validationEmailCode === code){
             if(now - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout){
                 return {
@@ -108,10 +170,10 @@ async function UserLogin(){
             reason: "invalid code"
         }
     }
-    self.getUserValidationEmailCode = async function(email, name, referrerId){
+    self.getUserValidationEmailCode = async function(email, name, referrerId, authType, validationEmailCode){
         let user = await persistence.hasUserLoginStatus(email);
         if(!user){
-            user = await self.createUser(email, name, referrerId);
+            user = await self.createUser(email, name, referrerId, authType, validationEmailCode);
             return {
                 status: "success",
                 code: user.validationEmailCode,

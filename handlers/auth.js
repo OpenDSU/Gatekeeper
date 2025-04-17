@@ -23,7 +23,7 @@ const userExists = async function (req, res) {
         return res.end(JSON.stringify({error: err.message}));
     }
     res.writeHead(200, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({account_exists: response.userExists}));
+    res.end(JSON.stringify({account_exists: response.userExists, ...response}));
 }
 
 const generateAuthCode = async function (req, res) {
@@ -40,9 +40,9 @@ const generateAuthCode = async function (req, res) {
     let client = await initAPIClient(req, constants.USER_PLUGIN);
 
     try {
-        let {email, name, referrerId} = authData;
+        let {email, name, referrerId, authType, validationEmailCode} = authData;
         utils.validateEmail(email);
-        let result = await client.getUserValidationEmailCode(email, name, referrerId);
+        let result = await client.getUserValidationEmailCode(email, name, referrerId, authType, validationEmailCode);
         if (result.status === "success") {
             if(result.walletKey){
                 const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
