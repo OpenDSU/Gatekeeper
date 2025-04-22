@@ -15,15 +15,13 @@ module.exports = async function (server) {
         console.error("SERVERLESS_ID is missing setting default - gatekeeper");
         process.env.SERVERLESS_ID = constants.SERVERLESS_ID;
     }
-    let serverUrl;
     setTimeout(async ()=>{
         const serverlessAPI = await server.createServerlessAPI({
             urlPrefix: process.env.SERVERLESS_ID,
             storage: path.resolve(process.env.SERVERLESS_STORAGE),
             env: process.env,
         });
-        serverUrl = serverlessAPI.getUrl();
-        server.registerServerlessProcessUrl(process.env.SERVERLESS_ID, serverUrl);
+        server.registerServerlessProcessUrl(process.env.SERVERLESS_ID, serverlessAPI.url);
     },0);
     server.use(`/proxy/*`, bodyReader);
     server.use(`/proxy/*`, authenticationMiddleware);
