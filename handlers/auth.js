@@ -50,7 +50,7 @@ const generateAuthCode = async function (req, res) {
                 let dsu = await $$.promisify(resolver.loadDSU)(versionlessSSI);
             }
             let responseMessage = {result: "success"};
-            if (req.headers.origin === "http://localhost:8080") {
+            if (req.headers.origin === "http://localhost:8080" || result.authType === "passkey") {
                 responseMessage.code = result.code;
             } else {
                 let emailClient = await initAPIClient(req, constants.EMAIL_PLUGIN);
@@ -81,7 +81,9 @@ const walletLogin = async (req, res) => {
     let loginData = req.body;
     try {
         loginData = JSON.parse(loginData);
-        loginData.code = loginData.code.trim();
+        if(typeof loginData.code === "string"){
+            loginData.code = loginData.code.trim();
+        }
         //TODO validate code
     } catch (e) {
         res.writeHead(415, {'Content-Type': 'application/json'});

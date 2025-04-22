@@ -126,15 +126,41 @@ async function UserLogin(){
                 lockTime: user.lastLoginAttempt + expiryTimeout - now
             }
         }
-        if(user.authType === "passkey"){
+        if (user.authType === "passkey") {
             // passkey login end
             // code contains passkey
             // verify passkey
-            return {
-                status: "success",
-                userExists: true,
+            let parsedStoredCode;
+            try {
+                parsedStoredCode = JSON.parse(user.validationEmailCode);
+                const verificationResult = await verifyAssertionResponse(
+                    code,
+                    parsedStoredCode,
+                    user.challenge,
+                    process.env.ORIGIN,
+                    process.env.RP_ID,
+                    true
+                );
+                user.validationEmailCode = JSON.stringify({
+                    publicKey: parsedStoredCode.publicKey,
+                    aaguid: parsedStoredCode.aaguid,
+                    id: parsedStoredCode.id,
+                    fmt: parsedStoredCode.fmt,
+                    count: verificationResult.newSignCount
+                });
+
+                return {
+                    status: "success",
+                    userExists: true
+                }
+            } catch (e) {
+                return {
+                    status: "failed",
+                    reason: "invalid passkey"
+                }
             }
         }
+
         if(user.validationEmailCode === code){
             if(now - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout){
                 return {
@@ -177,7 +203,8 @@ async function UserLogin(){
             return {
                 status: "success",
                 code: user.validationEmailCode,
-                walletKey: user.walletKey
+                walletKey: user.walletKey,
+                authType
             };
         }
         user = await persistence.getUserLoginStatus(email);
