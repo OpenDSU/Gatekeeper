@@ -1,19 +1,20 @@
 const {generateValidationCode, generateId, generateWalletKey} = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
-async function UserLogin(){
+
+async function UserLogin() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
     let CreditManager = await $$.loadPlugin("CreditManager");
     const {verifyRegistrationResponse, verifyAssertionResponse} = require("../passkey/serverSideWebauthn");
-    self.userExists = async function(email){
+    self.userExists = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (userExists) {
             let user = await persistence.getUserLoginStatus(email);
             if (user.authType === "passkey") {
                 // passkey login flow start
                 const parsedCredential = JSON.parse(user.validationEmailCode);
-            
+
                 const allowCredentials = [{
                     type: 'public-key',
                     id: parsedCredential.id,
@@ -89,10 +90,10 @@ async function UserLogin(){
         return user;
     }
 
-    self.logout = async function(sessionId){
+    self.logout = async function (sessionId) {
         //delete sessionObject here
         let sessionExists = await persistence.hasSession(sessionId);
-        if(!sessionExists){
+        if (!sessionExists) {
             return {
                 status: "failed",
                 reason: "session does not exist"
@@ -104,7 +105,22 @@ async function UserLogin(){
         }
     }
 
-    self.authorizeUser = async function(email, code){
+    async function setUserLoginStatus(user) {
+        let sessionId = generateId(16);
+        if (user.authType !== "passkey") {
+            user.validationEmailCode = undefined;
+            user.validationEmailCodeTimestamp = undefined;
+        }
+        let session = await persistence.createSession({
+            userLoginId: user.id,
+            sessionId: sessionId
+        });
+        user.loginAttempts = 0;
+        await persistence.updateUserLoginStatus(user.id, user);
+        return sessionId;
+    }
+
+    self.authorizeUser = async function (email, code) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
             return {
@@ -126,12 +142,14 @@ async function UserLogin(){
                 lockTime: user.lastLoginAttempt + expiryTimeout - now
             }
         }
+
         if (user.authType === "passkey") {
             // passkey login end
             // code contains passkey
             // verify passkey
             let parsedStoredCode;
             try {
+                let sessionId = await setUserLoginStatus(user);
                 parsedStoredCode = JSON.parse(user.validationEmailCode);
                 const verificationResult = await verifyAssertionResponse(
                     code,
@@ -150,8 +168,13 @@ async function UserLogin(){
                 });
 
                 return {
+                    userExists: true,
                     status: "success",
-                    userExists: true
+                    sessionId: sessionId,
+                    email: email,
+                    walletKey: user.walletKey,
+                    userInfo: user.userInfo,
+                    userId: user.globalUserId
                 }
             } catch (e) {
                 return {
@@ -161,23 +184,15 @@ async function UserLogin(){
             }
         }
 
-        if(user.validationEmailCode === code){
-            if(now - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout){
+        if (user.validationEmailCode === code) {
+            if (now - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout) {
                 return {
                     status: "failed",
                     reason: "code expired"
                 }
             }
 
-            user.validationEmailCode = undefined;
-            user.validationEmailCodeTimestamp = undefined;
-            let sessionId = generateId(16);
-            let session = await persistence.createSession({
-                userLoginId: user.id,
-                sessionId: sessionId
-            });
-            user.loginAttempts = 0;
-            await persistence.updateUserLoginStatus(user.id, user);
+            let sessionId = await setUserLoginStatus(user);
             return {
                 status: "success",
                 sessionId: sessionId,
@@ -196,9 +211,10 @@ async function UserLogin(){
             reason: "invalid code"
         }
     }
-    self.getUserValidationEmailCode = async function(email, name, referrerId, authType, validationEmailCode){
+
+    self.getUserValidationEmailCode = async function (email, name, referrerId, authType, validationEmailCode) {
         let user = await persistence.hasUserLoginStatus(email);
-        if(!user){
+        if (!user) {
             user = await self.createUser(email, name, referrerId, authType, validationEmailCode);
             return {
                 status: "success",
@@ -209,7 +225,7 @@ async function UserLogin(){
         }
         user = await persistence.getUserLoginStatus(email);
         if (user.loginAttempts >= maxLoginAttempts) {
-            if(user.lastLoginAttempt > new Date().getTime() - expiryTimeout){
+            if (user.lastLoginAttempt > new Date().getTime() - expiryTimeout) {
                 return {
                     status: "failed",
                     reason: "exceeded number of attempts",
@@ -227,9 +243,9 @@ async function UserLogin(){
         };
 
     };
-    self.checkSessionId = async function(sessionId){
+    self.checkSessionId = async function (sessionId) {
         let sessionExists = await persistence.hasSession(sessionId);
-        if(!sessionExists){
+        if (!sessionExists) {
             return {
                 status: "failed",
                 reason: "session does not exist"
@@ -253,7 +269,7 @@ async function UserLogin(){
 
     }
 
-    self.getUserInfo = async function(email){
+    self.getUserInfo = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
             return {
@@ -268,7 +284,7 @@ async function UserLogin(){
         };
     }
 
-    self.setUserInfo = async function(email, userInfo){
+    self.setUserInfo = async function (email, userInfo) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
             return {
@@ -284,9 +300,9 @@ async function UserLogin(){
         }
     }
 
-    self.incrementLoginAttempts = async function(email){
+    self.incrementLoginAttempts = async function (email) {
         let user = await persistence.getUserLoginStatus(email);
-        if(!user.loginAttempts){
+        if (!user.loginAttempts) {
             user.loginAttempts = 0;
         }
         user.loginAttempts++;
@@ -296,7 +312,7 @@ async function UserLogin(){
         }
     }
 
-    self.resetLoginAttempts = async function(email){
+    self.resetLoginAttempts = async function (email) {
         let user = await persistence.getUserLoginStatus(email);
         user.loginAttempts = 0;
         await persistence.updateUserLoginStatus(user.id, user);
@@ -304,7 +320,7 @@ async function UserLogin(){
             status: "success"
         }
     }
-    self.shutDown = async function(){
+    self.shutDown = async function () {
         await persistence.shutDown();
         return {
             status: "success"
@@ -317,17 +333,17 @@ let singletonInstance = undefined;
 
 module.exports = {
     getInstance: async function () {
-        if(!singletonInstance){
+        if (!singletonInstance) {
             singletonInstance = await UserLogin();
         }
         return singletonInstance;
     },
-    getAllow: function(){
-        return async function(globalUserId, email, command, ...args){
+    getAllow: function () {
+        return async function (globalUserId, email, command, ...args) {
             return true;
         }
     },
-    getDependencies: function(){
+    getDependencies: function () {
         return ["StandardPersistence", "CreditManager"];
     }
 }
