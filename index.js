@@ -21,7 +21,7 @@ module.exports = async function (server) {
             storage: path.resolve(process.env.SERVERLESS_STORAGE),
             env: process.env,
         });
-        server.registerServerlessProcessUrl(process.env.SERVERLESS_ID, serverlessAPI.url);
+        server.registerServerlessProcess(process.env.SERVERLESS_ID, serverlessAPI);
     },0);
     server.use(`/proxy/*`, bodyReader);
     server.use(`/proxy/*`, authenticationMiddleware);
