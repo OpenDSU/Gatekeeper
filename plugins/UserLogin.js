@@ -7,7 +7,7 @@ async function UserLogin() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
     let CreditManager = await $$.loadPlugin("CreditManager");
-    const {verifyRegistrationResponse, verifyAssertionResponse} = require("../passkey/serverSideWebauthn");
+    const {verifyRegistrationResponse, verifyAssertionResponse} = require("../authenticator/passkey/webauthn");
     self.userExists = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (userExists) {
