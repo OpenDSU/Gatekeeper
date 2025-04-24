@@ -35,12 +35,15 @@ module.exports = async function (server) {
         next();
     });
     server.get(`${AUTH_API_PREFIX}/userExists/:email`, auth.userExists);
+
     server.get(`${AUTH_API_PREFIX}/getInfo`, auth.getUserInfo);
 
     server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
     server.post(`${AUTH_API_PREFIX}/generateAuthCode`, auth.generateAuthCode);
+
     server.post(`${AUTH_API_PREFIX}/walletLogin`, auth.walletLogin);
+
     server.post(`${AUTH_API_PREFIX}/walletLogout`, auth.walletLogout);
 
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);

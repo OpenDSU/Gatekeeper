@@ -1,6 +1,7 @@
 const {generateValidationCode, generateId, generateWalletKey} = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
+const process = require("process");
 
 async function UserLogin() {
     let self = {};
@@ -243,6 +244,7 @@ async function UserLogin() {
         };
 
     };
+
     self.checkSessionId = async function (sessionId) {
         let sessionExists = await persistence.hasSession(sessionId);
         if (!sessionExists) {
@@ -267,6 +269,10 @@ async function UserLogin() {
             walletKey: user.walletKey
         };
 
+    }
+
+    self.isSysAdmin = async function (email) {
+        return process.env.SYSADMIN_EMAIL === email;
     }
 
     self.getUserInfo = async function (email) {
@@ -320,6 +326,7 @@ async function UserLogin() {
             status: "success"
         }
     }
+
     self.shutDown = async function () {
         await persistence.shutDown();
         return {
