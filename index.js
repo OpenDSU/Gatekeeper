@@ -47,4 +47,6 @@ module.exports = async function (server) {
     server.post(`${AUTH_API_PREFIX}/walletLogout`, auth.walletLogout);
 
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);
+
+    server.post(`${AUTH_API_PREFIX}/registerNewPasskey`, auth.registerNewPasskey);
 }
