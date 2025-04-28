@@ -521,6 +521,12 @@ async function UserLogin() {
             status: "success"
         }
     }
+    self.logout = async function(){
+        //TODO need this?
+        return {
+            status: "success"
+        }
+    }
     return self;
 }
 
