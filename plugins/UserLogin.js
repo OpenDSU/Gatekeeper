@@ -411,7 +411,6 @@ async function UserLogin() {
             await self.resetLoginAttempts(email);
             user = await persistence.getUserLoginStatus(email); // Re-fetch user
         }
-        getUserLoginStatusById
         // Generate a new email code if user exists and uses email auth
         if (user.authType === 'email') {
             user.validationEmailCode = generateValidationCode(5);
