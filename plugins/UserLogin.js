@@ -420,10 +420,6 @@ async function UserLogin() {
             await self.resetLoginAttempts(email);
             user = await persistence.getUserLoginStatus(email); // Re-fetch user
         }
-<<<<<<< Updated upstream
-        // Generate a new email code if user exists and uses email auth
-=======
->>>>>>> Stashed changes
         if (user.authType === 'email') {
             user.validationEmailCode = generateValidationCode(5);
             user.validationEmailCodeTimestamp = new Date().toISOString();
