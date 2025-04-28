@@ -49,4 +49,8 @@ module.exports = async function (server) {
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);
 
     server.post(`${AUTH_API_PREFIX}/registerNewPasskey`, auth.registerNewPasskey);
+    
+    // TOTP endpoints
+    server.post(`${AUTH_API_PREFIX}/registerTotp`, auth.registerTotp);
+    server.post(`${AUTH_API_PREFIX}/verifyTotp`, auth.verifyTotp);
 }

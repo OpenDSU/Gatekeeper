@@ -7,6 +7,7 @@ const baseURL = system.getBaseURL();
 const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
+const otpauth = require('../authenticator/totp/otpauth/index.cjs');
 
 async function initAPIClient(req, pluginName) {
     // Pass session details if available, otherwise use '*' for unauthenticated calls
@@ -36,8 +37,7 @@ const userExists = async function (req, res) {
         return res.end(JSON.stringify({ error: err.message }));
     }
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    // Send the full response object back
-    res.end(JSON.stringify(response));
+    res.end(JSON.stringify({ account_exists: response.userExists, ...response }));
 }
 
 const generateAuthCode = async function (req, res) {
@@ -83,7 +83,51 @@ const generateAuthCode = async function (req, res) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ result: "success", message: "Passkey registration successful." }));
 
-        } else { // Default to email auth
+        } else if (authType === "totp") {
+            // Create user with TOTP auth type
+            result = await client.createUser(email, name, referrerId, "totp", null);
+            
+            // User creation successful, now create DSU
+            if (result.status === "success" && result.walletKey) {
+                const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
+                await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
+                logger.info(`DSU created for new TOTP user ${email}`);
+            } else if (result.status !== "success") {
+                throw new Error(result.reason || "Failed to create TOTP user.");
+            }
+
+            // Generate TOTP secret for new signup
+            const secret = new otpauth.Secret();
+            
+            // Create TOTP instance
+            const totp = new otpauth.TOTP({
+                issuer: 'OutfinityGift',
+                label: email,
+                algorithm: 'SHA1',
+                digits: 6,
+                period: 30,
+                secret: secret
+            });
+            
+            // Generate OTP URI for QR code
+            const otpUri = totp.toString();
+            
+            // Store secret in UserLogin
+            const secretResult = await client.setTotpSecret(email, secret.base32);
+            
+            if (secretResult.status !== "success") {
+                throw new Error(secretResult.reason || "Failed to store TOTP secret");
+            }
+
+            // For TOTP registration, return the TOTP info for QR code generation
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ 
+                result: "success", 
+                message: "TOTP registration successful.",
+                uri: otpUri,
+                secret: secret.base32 // Include for display purposes
+            }));
+        } else {
             result = await client.getUserValidationEmailCode(email, name, referrerId);
             if (result.status === "success") {
                 if (result.walletKey) { // Ensure DSU exists if user was created
@@ -324,6 +368,140 @@ const setUserInfo = async (req, res) => {
     }
 }
 
+// TOTP Registration handler
+const registerTotp = async (req, res) => {
+    // This endpoint requires authentication - only authenticated users can register TOTP
+    if (!req.userId || !req.email) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: "Authentication required." }));
+    }
+
+    try {
+        const email = decodeURIComponent(req.email);
+        
+        // Generate a new TOTP secret
+        const secret = new otpauth.Secret();
+        
+        // Create TOTP instance
+        const totp = new otpauth.TOTP({
+            issuer: 'OutfinityGift',
+            label: email,
+            algorithm: 'SHA1',
+            digits: 6,
+            period: 30,
+            secret: secret
+        });
+        
+        // Generate OTP URI for QR code
+        const otpUri = totp.toString();
+        
+        // Store secret in UserLogin (calling plugin)
+        let client = await initAPIClient(req, constants.USER_PLUGIN);
+        const result = await client.setTotpSecret(email, secret.base32);
+        
+        if (result.status === "success") {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                status: "success", 
+                uri: otpUri, 
+                secret: secret.base32 // Include for display purposes
+            }));
+            logger.info(`TOTP setup initiated for user ${email}`);
+        } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ 
+                status: "error", 
+                error: result.reason || "Failed to store TOTP secret"
+            }));
+        }
+    } catch (e) {
+        logger.error(`Error during TOTP registration for ${req.email}: ${e.message}`, e.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+    }
+};
+
+// TOTP Verification handler
+const verifyTotp = async (req, res) => {
+    let verifyData;
+    try {
+        verifyData = JSON.parse(req.body);
+        
+        // Get verification token and user email
+        const { token, email, enableTotp } = verifyData;
+        
+        if (!token || !/^[0-9]{6}$/.test(token)) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Please enter a valid 6-digit code." }));
+        }
+        
+        // If email is included, this is a login attempt
+        // If not, it's a verification after registration (enableTotp will be true)
+        let userEmail = email;
+        
+        // For verification after registration, use logged in user's email
+        if (!userEmail && enableTotp === true) {
+            if (!req.email) {
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: "Authentication required." }));
+            }
+            userEmail = decodeURIComponent(req.email);
+        }
+        
+        if (!userEmail) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Email is required." }));
+        }
+        
+        let client = await initAPIClient(req, constants.USER_PLUGIN);
+        
+        if (enableTotp === true) {
+            // This is verification during setup - enable TOTP if verification succeeds
+            const verifyResult = await client.verifyAndEnableTotp(userEmail, token);
+            
+            if (verifyResult.status === "success") {
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    status: "success", 
+                    message: "TOTP enabled successfully" 
+                }));
+                logger.info(`TOTP enabled for user ${userEmail}`);
+            } else {
+                res.writeHead(400, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ 
+                    status: "error", 
+                    error: verifyResult.reason || "Invalid verification code" 
+                }));
+            }
+        } else {
+            // This is a login attempt using TOTP
+            const result = await client.authorizeUser(userEmail, token, undefined, "totp");
+            
+            if (result.status === "success") {
+                // Login successful, create session cookies
+                let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
+                res.setHeader('Set-Cookie', cookies);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ operation: "success" }));
+                logger.info(`User ${userEmail} logged in successfully using TOTP.`);
+            } else {
+                // Login failed
+                const statusCode = (result.reason === "exceeded number of attempts") ? 403 : 401;
+                res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({
+                    error: result.reason,
+                    details: { lockTime: result.lockTime }
+                }));
+                logger.warn(`User ${userEmail} TOTP login failed: ${result.reason}`);
+            }
+        }
+    } catch (e) {
+        logger.error(`Error during TOTP verification: ${e.message}`, e.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+    }
+};
+
 module.exports = {
     generateAuthCode,
     walletLogin,
@@ -331,5 +509,7 @@ module.exports = {
     userExists,
     getUserInfo,
     setUserInfo,
-    registerNewPasskey // Export the new handler
+    registerNewPasskey,
+    registerTotp,
+    verifyTotp
 }
