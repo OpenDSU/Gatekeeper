@@ -528,14 +528,12 @@ async function UserLogin() {
             status: "success"
         }
     }
-<<<<<<< Updated upstream
     self.logout = async function(){
         //TODO need this?
         return {
             status: "success"
         }
     }
-=======
 
     // TOTP Methods
     
@@ -615,7 +613,6 @@ async function UserLogin() {
         }
     }
 
->>>>>>> Stashed changes
     return self;
 }
 
