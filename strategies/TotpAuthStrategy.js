@@ -1,0 +1,148 @@
+const AuthStrategyInterface = require('./AuthStrategyInterface');
+const otpauth = require('../authenticator/totp/otpauth/index.cjs');
+const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
+class TotpAuthStrategy extends AuthStrategyInterface {
+    constructor(userLoginPlugin) {
+        super();
+        this.userLogin = userLoginPlugin;
+    }
+
+    async checkUserExists(email) {
+        const response = await this.userLogin.userExists(email);
+
+        if (response.userExists && response.authType === AUTH_TYPES.TOTP) {
+            return {
+                userExists: true,
+                authType: AUTH_TYPES.TOTP
+            };
+        } else if (response.userExists) {
+            return {
+                userExists: true,
+                authType: response.authType
+            };
+        }
+        return {
+            userExists: false,
+            authType: AUTH_TYPES.TOTP
+        };
+    }
+
+    async generateAuthData(data) {
+        const { email, name, referrerId } = data;
+
+        const result = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.TOTP, null);
+
+        if (result.status !== STATUS.SUCCESS) {
+            throw new Error(result.reason || "Failed to create TOTP user.");
+        }
+
+        const secret = new otpauth.Secret();
+
+        const totp = new otpauth.TOTP({
+            issuer: 'OutfinityGift',
+            label: email,
+            algorithm: 'SHA1',
+            digits: 6,
+            period: 30,
+            secret: secret
+        });
+
+        const otpUri = totp.toString();
+
+        const secretResult = await this.userLogin.setTotpSecret(email, secret.base32);
+
+        if (secretResult.status !== STATUS.SUCCESS) {
+            throw new Error(secretResult.reason || "Failed to store TOTP secret");
+        }
+
+        return {
+            result: STATUS.SUCCESS,
+            message: "TOTP registration successful.",
+            uri: otpUri,
+            secret: secret.base32,
+            walletKey: result.walletKey
+        };
+    }
+
+    async login(loginData) {
+        const { email, token } = loginData;
+
+        const result = await this.userLogin.authorizeUser(email, token, undefined, AUTH_TYPES.TOTP);
+
+        if (result.status === STATUS.SUCCESS) {
+            return {
+                success: true,
+                userId: result.userId,
+                email: result.email,
+                walletKey: result.walletKey,
+                sessionId: result.sessionId
+            };
+        } else {
+            return {
+                success: false,
+                error: result.reason,
+                lockTime: result.lockTime
+            };
+        }
+    }
+
+    async createUser(userData) {
+        const { email, name, referrerId } = userData;
+
+        const result = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.TOTP, null);
+
+        if (result.status === STATUS.SUCCESS) {
+            return {
+                success: true,
+                walletKey: result.walletKey
+            };
+        } else {
+            throw new Error(result.reason || "Failed to create TOTP user");
+        }
+    }
+
+    async setupTotp(email) {
+        const secret = new otpauth.Secret();
+
+        const totp = new otpauth.TOTP({
+            issuer: 'OutfinityGift',
+            label: email,
+            algorithm: 'SHA1',
+            digits: 6,
+            period: 30,
+            secret: secret
+        });
+
+        const otpUri = totp.toString();
+
+        const result = await this.userLogin.setTotpSecret(email, secret.base32);
+
+        if (result.status === STATUS.SUCCESS) {
+            return {
+                status: STATUS.SUCCESS,
+                uri: otpUri,
+                secret: secret.base32
+            };
+        } else {
+            throw new Error(result.reason || "Failed to store TOTP secret");
+        }
+    }
+
+    async verifyAndEnableTotp(email, token) {
+        const result = await this.userLogin.verifyAndEnableTotp(email, token);
+
+        if (result.status === STATUS.SUCCESS) {
+            return {
+                success: true,
+                message: "TOTP enabled successfully"
+            };
+        } else {
+            return {
+                success: false,
+                error: result.reason || "Invalid verification code"
+            };
+        }
+    }
+}
+
+module.exports = TotpAuthStrategy; 

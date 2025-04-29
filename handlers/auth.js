@@ -7,7 +7,7 @@ const baseURL = system.getBaseURL();
 const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
-const otpauth = require('../authenticator/totp/otpauth/index.cjs');
+const authStrategyFactory = require('../strategies/AuthStrategyFactory');
 
 async function initAPIClient(req, pluginName) {
     // Pass session details if available, otherwise use '*' for unauthenticated calls
@@ -18,18 +18,30 @@ async function initAPIClient(req, pluginName) {
     );
 }
 
+// Initialize strategy factory when first needed
+let factoryInitialized = false;
+async function ensureFactoryInitialized(req) {
+    if (!factoryInitialized) {
+        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
+        const emailClient = await initAPIClient(req, constants.EMAIL_PLUGIN);
+        authStrategyFactory.init(userLoginClient, emailClient);
+        factoryInitialized = true;
+    }
+}
+
 const userExists = async function (req, res) {
     let response;
     try {
         let { email } = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        // userExists can be called without authentication
-        let client = await initAPIClient(req, constants.USER_PLUGIN);
-        response = await client.userExists(email);
 
-        // response from UserLogin.userExists already contains the necessary fields
-        // like userExists, authType, publicKeyCredentialRequestOptions, challengeKey
+        // Initialize strategy factory if needed
+        await ensureFactoryInitialized(req);
+
+        // Use strategy factory to get user info
+        const { userInfo } = await authStrategyFactory.getStrategyForUser(email);
+        response = userInfo;
 
     } catch (err) {
         logger.error(`Error in userExists for ${req.params.email}: ${err.message}`, err.stack);
@@ -56,119 +68,34 @@ const generateAuthCode = async function (req, res) {
         return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
     }
 
-    // generateAuthCode (which now might create a user) can be called without authentication
-    let client = await initAPIClient(req, constants.USER_PLUGIN);
+    // Initialize strategy factory if needed
+    await ensureFactoryInitialized(req);
 
     try {
-        const { email, name, referrerId, authType, registrationData } = parsedData;
+        const { email, authType } = parsedData;
 
-        // Call UserLogin: getUserValidationEmailCode for 'email', createUser for 'passkey'
-        let result;
-        if (authType === "passkey") {
-            // This will create the user with the first passkey
-            result = await client.createUser(email, name, referrerId, "passkey", registrationData);
-            // User creation successful, now create DSU
-            if (result.status === "success" && result.walletKey) {
-                const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
-                await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
-                // Loading DSU might not be necessary here unless needed immediately
-                // let dsu = await $$.promisify(resolver.loadDSU)(versionlessSSI);
-                logger.info(`DSU created for new passkey user ${email}`);
-            } else if (result.status !== "success") {
-                // Handle user creation failure specifically
-                throw new Error(result.reason || "Failed to create passkey user.");
-            }
+        // Get the appropriate strategy
+        const strategy = authStrategyFactory.getStrategy(authType);
 
-            // For passkey registration, no code is sent back/emailed. Success is sufficient.
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ result: "success", message: "Passkey registration successful." }));
+        // Generate authentication data for this strategy
+        const result = await strategy.generateAuthData({
+            ...parsedData,
+            origin: req.headers.origin
+        });
 
-        } else if (authType === "totp") {
-            // Create user with TOTP auth type
-            result = await client.createUser(email, name, referrerId, "totp", null);
-            
-            // User creation successful, now create DSU
-            if (result.status === "success" && result.walletKey) {
-                const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
-                await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
-                logger.info(`DSU created for new TOTP user ${email}`);
-            } else if (result.status !== "success") {
-                throw new Error(result.reason || "Failed to create TOTP user.");
-            }
-
-            // Generate TOTP secret for new signup
-            const secret = new otpauth.Secret();
-            
-            // Create TOTP instance
-            const totp = new otpauth.TOTP({
-                issuer: 'OutfinityGift',
-                label: email,
-                algorithm: 'SHA1',
-                digits: 6,
-                period: 30,
-                secret: secret
-            });
-            
-            // Generate OTP URI for QR code
-            const otpUri = totp.toString();
-            
-            // Store secret in UserLogin
-            const secretResult = await client.setTotpSecret(email, secret.base32);
-            
-            if (secretResult.status !== "success") {
-                throw new Error(secretResult.reason || "Failed to store TOTP secret");
-            }
-
-            // For TOTP registration, return the TOTP info for QR code generation
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ 
-                result: "success", 
-                message: "TOTP registration successful.",
-                uri: otpUri,
-                secret: secret.base32 // Include for display purposes
-            }));
-        } else {
-            result = await client.getUserValidationEmailCode(email, name, referrerId);
-            if (result.status === "success") {
-                if (result.walletKey) { // Ensure DSU exists if user was created
-                    const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
-                    // Check if DSU exists before creating
-                    try {
-                        await $$.promisify(resolver.loadDSU)(versionlessSSI);
-                    } catch (err) {
-                        // DSU doesn't exist, create it
-                        await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
-                        logger.info(`DSU created for new email user ${email}`);
-                    }
-                }
-
-                let responseMessage = { result: "success" };
-                // Only include code in response for local dev or specific conditions
-                // Never email passkey data!
-                if (process.env.NODE_ENV === 'development' || req.headers.origin === "http://localhost:8080") {
-                    responseMessage.code = result.code;
-                } else {
-                    let emailClient = await initAPIClient(req, constants.EMAIL_PLUGIN);
-                    let subject = "Your authentication code";
-                    let text = `Your authentication code is: ${result.code}`;
-                    let html = `Your authentication code is: <strong>${result.code}</strong>`;
-                    await emailClient.sendEmail(email, process.env.SENDGRID_SENDER_EMAIL, subject, text, html);
-                    logger.info(`Sent auth code email to ${email}`);
-                }
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify(responseMessage));
-            } else {
-                // Handle failure from getUserValidationEmailCode (e.g., locked account)
-                res.writeHead(403, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({
-                    error: result.reason,
-                    details: { lockTime: result.lockTime }
-                }));
-            }
+        // If walletKey is present, create DSU
+        if (result.walletKey) {
+            const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
+            await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
+            logger.info(`DSU created for new ${authType} user ${email}`);
         }
 
+        // Send response
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify(result));
+
     } catch (e) {
-        logger.error(`Error during generateAuthCode/createUser for ${parsedData.email}: ${e.message}`, e.stack);
+        logger.error(`Error during generateAuthCode for ${parsedData.email}: ${e.message}`, e.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
@@ -182,18 +109,30 @@ const walletLogin = async (req, res) => {
         parsedData = JSON.parse(loginData);
         utils.validateEmail(parsedData.email);
 
-        // Validate structure based on expected type (passkey object or email code string)
-        if (!parsedData.loginMethod || (parsedData.loginMethod !== "passkey" && parsedData.loginMethod !== "emailCode")) {
-            throw new Error("Missing or invalid 'loginMethod' (must be 'passkey' or 'emailCode').");
+        // Validate login method
+        if (!parsedData.loginMethod ||
+            !["passkey", "emailCode", "totp"].includes(parsedData.loginMethod)) {
+            throw new Error("Missing or invalid 'loginMethod'");
         }
-        if (parsedData.loginMethod === "passkey" && (typeof parsedData.assertion !== 'object' || !parsedData.assertion.id || !parsedData.challengeKey)) {
-            throw new Error("Invalid or incomplete passkey assertion data or missing challengeKey.");
-        }
-        if (parsedData.loginMethod === "emailCode" && typeof parsedData.code !== 'string') {
-            throw new Error("Invalid or missing email code.");
-        }
-        if (parsedData.loginMethod === "emailCode") {
-            parsedData.code = parsedData.code.trim(); // Trim email code
+
+        // Validate method-specific data
+        switch (parsedData.loginMethod) {
+            case "passkey":
+                if (typeof parsedData.assertion !== 'object' || !parsedData.assertion.id || !parsedData.challengeKey) {
+                    throw new Error("Invalid or incomplete passkey assertion data or missing challengeKey.");
+                }
+                break;
+            case "emailCode":
+                if (typeof parsedData.code !== 'string') {
+                    throw new Error("Invalid or missing email code.");
+                }
+                parsedData.code = parsedData.code.trim();
+                break;
+            case "totp":
+                if (typeof parsedData.token !== 'string' || !/^[0-9]{6}$/.test(parsedData.token)) {
+                    throw new Error("Invalid or missing TOTP token.");
+                }
+                break;
         }
 
     } catch (e) {
@@ -202,16 +141,22 @@ const walletLogin = async (req, res) => {
         return res.end(JSON.stringify({ error: `Invalid login data: ${e.message}` }));
     }
 
-    // walletLogin can be called without prior authentication
-    let client = await initAPIClient(req, constants.USER_PLUGIN);
+    // Initialize strategy factory if needed
+    await ensureFactoryInitialized(req);
+
     try {
-        const { email, loginMethod, assertion, code, challengeKey } = parsedData;
-        let loginPayload = (loginMethod === "passkey") ? assertion : code;
+        const { email, loginMethod } = parsedData;
 
-        // Pass challengeKey only for passkey login
-        let result = await client.authorizeUser(email, loginPayload, loginMethod === "passkey" ? challengeKey : undefined);
+        // Map login method to strategy type
+        const strategyType = loginMethod === "emailCode" ? "email" : loginMethod;
 
-        if (result.status === "success") {
+        // Get the appropriate strategy
+        const strategy = authStrategyFactory.getStrategy(strategyType);
+
+        // Call login method on the strategy
+        const result = await strategy.login(parsedData);
+
+        if (result.success) {
             // Login successful, create session cookies
             let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
             res.setHeader('Set-Cookie', cookies);
@@ -220,13 +165,13 @@ const walletLogin = async (req, res) => {
             logger.info(`User ${email} logged in successfully (${loginMethod}).`);
         } else {
             // Login failed (invalid code/passkey, locked, etc.)
-            const statusCode = (result.reason === "exceeded number of attempts") ? 403 : 401;
+            const statusCode = (result.error === "exceeded number of attempts") ? 403 : 401;
             res.writeHead(statusCode, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
-                error: result.reason,
+                error: result.error,
                 details: { lockTime: result.lockTime } // Include lockTime if present
             }));
-            logger.warn(`User ${email} login failed (${loginMethod}): ${result.reason}`);
+            logger.warn(`User ${email} login failed (${loginMethod}): ${result.error}`);
         }
     } catch (e) {
         logger.error(`Error during walletLogin for ${parsedData.email}: ${e.message}`, e.stack);
@@ -257,21 +202,26 @@ const registerNewPasskey = async (req, res) => {
         return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
     }
 
-    // Use authenticated client
-    let client = await initAPIClient(req, constants.USER_PLUGIN);
+    // Initialize strategy factory if needed
+    await ensureFactoryInitialized(req);
+
     let email = decodeURIComponent(req.email);
     try {
-        let result = await client.registerNewPasskey(email, registrationData);
+        // Get passkey strategy
+        const passkeyStrategy = authStrategyFactory.getStrategy("passkey");
 
-        if (result.status === "success") {
+        // Register new passkey
+        let result = await passkeyStrategy.registerNewPasskey(email, registrationData);
+
+        if (result.success) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ operation: "success", credentialId: result.credentialId }));
             logger.info(`Successfully registered new passkey for user ${email}`);
         } else {
             // Handle specific errors from UserLogin if any are defined, otherwise use 400
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: result.reason || "Failed to register new passkey." }));
-            logger.warn(`Failed to register new passkey for user ${email}: ${result.reason}`);
+            res.end(JSON.stringify({ error: result.error || "Failed to register new passkey." }));
+            logger.warn(`Failed to register new passkey for user ${email}: ${result.error}`);
         }
     } catch (e) {
         logger.error(`Error during registerNewPasskey for ${email}: ${e.message}`, e.stack);
@@ -321,37 +271,37 @@ const walletLogout = async (req, res) => {
 
 const getUserInfo = async (req, res) => {
     try {
-        let {email} = req.query;
-        if(!email){
+        let { email } = req.query;
+        if (!email) {
             email = req.email;
         }
         email = decodeURIComponent(email);
         utils.validateEmail(email);
         let client = await initAPIClient(req, constants.USER_PLUGIN);
         let result = await client.getUserInfo(email);
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result.userInfo));
     } catch (e) {
         logger.debug(e.message);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: e.message}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
     }
 }
 
 const setUserInfo = async (req, res) => {
     try {
-        let {email} = req.query;
-        if(!email){
+        let { email } = req.query;
+        if (!email) {
             email = req.email;
         }
 
         let data;
         try {
             data = JSON.parse(req.body);
-        }catch (e) {
-            res.writeHead(415, {'Content-Type': 'application/json'});
+        } catch (e) {
+            res.writeHead(415, { 'Content-Type': 'application/json' });
             logger.debug(e.message);
-            res.end(JSON.stringify({error: "Wrong data"}));
+            res.end(JSON.stringify({ error: "Wrong data" }));
             return;
         }
 
@@ -359,12 +309,12 @@ const setUserInfo = async (req, res) => {
         utils.validateEmail(email);
         let client = await initAPIClient(req, constants.USER_PLUGIN);
         await client.setUserInfo(email, data);
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({operation: "success"}));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ operation: "success" }));
     } catch (e) {
         logger.debug(e.message);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: e.message}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
     }
 }
 
@@ -377,41 +327,30 @@ const registerTotp = async (req, res) => {
     }
 
     try {
+        // Initialize strategy factory if needed
+        await ensureFactoryInitialized(req);
+
         const email = decodeURIComponent(req.email);
-        
-        // Generate a new TOTP secret
-        const secret = new otpauth.Secret();
-        
-        // Create TOTP instance
-        const totp = new otpauth.TOTP({
-            issuer: 'OutfinityGift',
-            label: email,
-            algorithm: 'SHA1',
-            digits: 6,
-            period: 30,
-            secret: secret
-        });
-        
-        // Generate OTP URI for QR code
-        const otpUri = totp.toString();
-        
-        // Store secret in UserLogin (calling plugin)
-        let client = await initAPIClient(req, constants.USER_PLUGIN);
-        const result = await client.setTotpSecret(email, secret.base32);
-        
+
+        // Get TOTP strategy
+        const totpStrategy = authStrategyFactory.getStrategy("totp");
+
+        // Set up TOTP
+        const result = await totpStrategy.setupTotp(email);
+
         if (result.status === "success") {
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-                status: "success", 
-                uri: otpUri, 
-                secret: secret.base32 // Include for display purposes
+            res.end(JSON.stringify({
+                status: "success",
+                uri: result.uri,
+                secret: result.secret
             }));
             logger.info(`TOTP setup initiated for user ${email}`);
         } else {
             res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ 
-                status: "error", 
-                error: result.reason || "Failed to store TOTP secret"
+            res.end(JSON.stringify({
+                status: "error",
+                error: result.error || "Failed to set up TOTP"
             }));
         }
     } catch (e) {
@@ -426,19 +365,19 @@ const verifyTotp = async (req, res) => {
     let verifyData;
     try {
         verifyData = JSON.parse(req.body);
-        
+
         // Get verification token and user email
         const { token, email, enableTotp } = verifyData;
-        
+
         if (!token || !/^[0-9]{6}$/.test(token)) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: "Please enter a valid 6-digit code." }));
         }
-        
+
         // If email is included, this is a login attempt
         // If not, it's a verification after registration (enableTotp will be true)
         let userEmail = email;
-        
+
         // For verification after registration, use logged in user's email
         if (!userEmail && enableTotp === true) {
             if (!req.email) {
@@ -447,52 +386,64 @@ const verifyTotp = async (req, res) => {
             }
             userEmail = decodeURIComponent(req.email);
         }
-        
+
         if (!userEmail) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: "Email is required." }));
         }
-        
-        let client = await initAPIClient(req, constants.USER_PLUGIN);
-        
+
+        // Initialize strategy factory if needed
+        await ensureFactoryInitialized(req);
+
+        // Get TOTP strategy
+        const totpStrategy = authStrategyFactory.getStrategy("totp");
+
         if (enableTotp === true) {
             // This is verification during setup - enable TOTP if verification succeeds
-            const verifyResult = await client.verifyAndEnableTotp(userEmail, token);
-            
-            if (verifyResult.status === "success") {
+            const result = await totpStrategy.verifyAndEnableTotp(userEmail, token);
+
+            if (result.success) {
                 res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    status: "success", 
-                    message: "TOTP enabled successfully" 
+                res.end(JSON.stringify({
+                    status: "success",
+                    message: "TOTP enabled successfully"
                 }));
                 logger.info(`TOTP enabled for user ${userEmail}`);
             } else {
                 res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ 
-                    status: "error", 
-                    error: verifyResult.reason || "Invalid verification code" 
+                res.end(JSON.stringify({
+                    status: "error",
+                    error: result.error || "Invalid verification code"
                 }));
             }
         } else {
             // This is a login attempt using TOTP
-            const result = await client.authorizeUser(userEmail, token, undefined, "totp");
-            
-            if (result.status === "success") {
+            const loginResult = await totpStrategy.login({
+                email: userEmail,
+                token: token
+            });
+
+            if (loginResult.success) {
                 // Login successful, create session cookies
-                let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
+                let cookies = utils.createAuthCookies(
+                    loginResult.userId,
+                    loginResult.email,
+                    loginResult.walletKey,
+                    loginResult.sessionId
+                );
                 res.setHeader('Set-Cookie', cookies);
                 res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({ operation: "success" }));
                 logger.info(`User ${userEmail} logged in successfully using TOTP.`);
             } else {
                 // Login failed
-                const statusCode = (result.reason === "exceeded number of attempts") ? 403 : 401;
+                const statusCode = (loginResult.error === "exceeded number of attempts") ? 403 : 401;
                 res.writeHead(statusCode, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
-                    error: result.reason,
-                    details: { lockTime: result.lockTime }
+                    error: loginResult.error,
+                    details: { lockTime: loginResult.lockTime }
                 }));
-                logger.warn(`User ${userEmail} TOTP login failed: ${result.reason}`);
+                logger.warn(`User ${userEmail} TOTP login failed: ${loginResult.error}`);
             }
         }
     } catch (e) {
