@@ -7,9 +7,9 @@ const crypto = require("crypto");
 
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../constants/authConstants');
 
-const EmailUserLoginStrategy = require('./strategies/EmailUserLoginStrategy');
-const PasskeyUserLoginStrategy = require('./strategies/PasskeyUserLoginStrategy');
-const TotpUserLoginStrategy = require('./strategies/TotpUserLoginStrategy');
+const EmailUserLoginStrategy = require('./user-login-strategies/EmailUserLoginStrategy');
+const PasskeyUserLoginStrategy = require('./user-login-strategies/PasskeyUserLoginStrategy');
+const TotpUserLoginStrategy = require('./user-login-strategies/TotpUserLoginStrategy');
 
 async function UserLogin() {
     let self = {};
