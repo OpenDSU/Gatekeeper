@@ -17,9 +17,9 @@ async function UserLogin() {
     const webauthnUtils = require("../authenticator/webauthn");
 
     const strategies = {
-        email: new EmailUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges),
-        passkey: new PasskeyUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges),
-        totp: new TotpUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges)
+        [AUTH_TYPES.EMAIL]: new EmailUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges),
+        [AUTH_TYPES.PASSKEY]: new PasskeyUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges),
+        [AUTH_TYPES.TOTP]: new TotpUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges)
     };
 
     function getStrategy(authType) {
