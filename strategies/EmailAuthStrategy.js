@@ -11,20 +11,20 @@ class EmailAuthStrategy extends AuthStrategyInterface {
 
     async checkUserExists(email) {
         const response = await this.userLogin.userExists(email);
-        if (response.userExists && response.authType === AUTH_TYPES.EMAIL) {
+        if (response.userExists && response.activeAuthType === AUTH_TYPES.EMAIL) {
             return {
                 userExists: true,
-                authType: AUTH_TYPES.EMAIL
+                activeAuthType: AUTH_TYPES.EMAIL
             };
         } else if (response.userExists) {
             return {
                 userExists: true,
-                authType: response.authType
+                activeAuthType: response.activeAuthType
             };
         }
         return {
             userExists: false,
-            authType: AUTH_TYPES.EMAIL
+            activeAuthType: AUTH_TYPES.EMAIL
         };
     }
 
