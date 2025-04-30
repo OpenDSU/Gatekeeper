@@ -37,8 +37,8 @@ const userExists = async function (req, res) {
 
         await ensureFactoryInitialized(req);
 
-        const { userInfo } = await authStrategyFactory.getStrategyForUser(email);
-        response = userInfo;
+        const strategy = await authStrategyFactory.getStrategyForUser(email);
+        response = await strategy.checkUserExists(email);
 
     } catch (err) {
         logger.error(`Error in userExists for ${req.params.email}: ${err.message}`, err.stack);

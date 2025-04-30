@@ -50,10 +50,7 @@ class AuthStrategyFactory {
             (userInfo.authTypes && userInfo.authTypes.length > 0 ?
                 userInfo.authTypes[0] : AUTH_TYPES.EMAIL);
 
-        return {
-            strategy: this.getStrategy(authTypeToUse),
-            userInfo: userInfo
-        };
+        return this.getStrategy(authTypeToUse)
     }
 }
 
