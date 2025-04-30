@@ -5,7 +5,7 @@
 
 // Auth Types
 const AUTH_TYPES = {
-    EMAIL: "email",
+    EMAIL: "emailCode",
     PASSKEY: "passkey",
     TOTP: "totp"
 };

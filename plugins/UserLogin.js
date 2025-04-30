@@ -23,7 +23,7 @@ async function UserLogin() {
     };
 
     function getStrategy(authType) {
-        return strategies[authType] || strategies.email;
+        return strategies[authType] || strategies[AUTH_TYPES.EMAIL];
     }
 
     self.userExists = async function (email) {
@@ -88,7 +88,7 @@ async function UserLogin() {
             throw new Error(ERROR_REASONS.USER_NOT_EXISTS);
         }
 
-        const strategy = strategies.passkey;
+        const strategy = strategies[AUTH_TYPES.PASSKEY];
         if (!strategy || typeof strategy.handleRegisterNewPasskey !== 'function') {
             throw new Error("Passkey strategy not available or invalid.");
         }
@@ -344,7 +344,7 @@ async function UserLogin() {
             user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
         }
 
-        const strategy = strategies.totp;
+        const strategy = strategies[AUTH_TYPES.TOTP];
         if (!strategy || typeof strategy.handleSetTotpSecret !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }

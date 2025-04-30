@@ -21,9 +21,9 @@ class AuthStrategyFactory {
         this.userLoginPlugin = userLoginPlugin;
         this.emailPlugin = emailPlugin;
 
-        this.strategies.email = new EmailAuthStrategy(userLoginPlugin, emailPlugin);
-        this.strategies.passkey = new PasskeyAuthStrategy(userLoginPlugin);
-        this.strategies.totp = new TotpAuthStrategy(userLoginPlugin);
+        this.strategies[AUTH_TYPES.EMAIL] = new EmailAuthStrategy(userLoginPlugin, emailPlugin);
+        this.strategies[AUTH_TYPES.PASSKEY] = new PasskeyAuthStrategy(userLoginPlugin);
+        this.strategies[AUTH_TYPES.TOTP] = new TotpAuthStrategy(userLoginPlugin);
     }
 
     /**
@@ -44,7 +44,7 @@ class AuthStrategyFactory {
      * @returns {Promise<Object>} The appropriate strategy and user info
      */
     async getStrategyForUser(email) {
-        const userInfo = await this.strategies.email.checkUserExists(email);
+        const userInfo = await this.strategies[AUTH_TYPES.EMAIL].checkUserExists(email);
 
         const authTypeToUse = userInfo.activeAuthType ||
             (userInfo.authTypes && userInfo.authTypes.length > 0 ?
