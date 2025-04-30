@@ -1,6 +1,9 @@
 const UserLoginStrategyInterface = require('./UserLoginStrategyInterface');
 const process = require("process");
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../../constants/authConstants');
+const AUDIT_EVENTS = require('../../Persisto/src/audit/AuditEvents.cjs');
+const SystemAudit = require('../../Persisto/src/audit/SystemAudit.cjs');
+
 class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
     constructor(persistence, webauthnUtils, crypto, loginChallenges) {
         super(persistence, webauthnUtils, crypto, loginChallenges);
@@ -65,16 +68,35 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
                 true
             );
 
+            const credentialId = credentialInfo.credentialId.toString('base64url');
+            const publicKey = credentialInfo.credentialPublicKey.toString('base64url');
+            const aaguid = credentialInfo.aaguid.toString('base64url');
+            const transports = registrationData.response.transports || [];
+
             userPayload.passkeyCredentials = [{
-                id: credentialInfo.credentialId.toString('base64url'),
-                publicKey: credentialInfo.credentialPublicKey.toString('base64url'),
+                id: credentialId,
+                publicKey: publicKey,
                 signCount: credentialInfo.signCount,
-                aaguid: credentialInfo.aaguid.toString('base64url'),
+                aaguid: aaguid,
                 fmt: credentialInfo.attestationFormat,
-                transports: registrationData.response.transports || [],
+                transports: transports,
                 name: "Primary Passkey",
                 createdAt: new Date().toISOString()
             }];
+
+            try {
+                const systemAudit = SystemAudit.getSystemAudit();
+                await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_REGISTER, {
+                    email: userPayload.email,
+                    credentialId: credentialId,
+                    publicKey: publicKey,
+                    aaguid: aaguid,
+                    transports: transports,
+                    createdAt: new Date().toISOString()
+                });
+            } catch (auditError) {
+                console.error("Failed to log initial passkey registration to audit:", auditError);
+            }
 
         } catch (e) {
             console.error("Passkey registration verification failed during user creation:", e);
@@ -187,6 +209,21 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             };
 
             user.passkeyCredentials.push(newCredential);
+
+            try {
+                const systemAudit = SystemAudit.getSystemAudit();
+                await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_REGISTER, {
+                    userID: user.id,
+                    email: user.email,
+                    credentialId: credentialIdB64,
+                    publicKey: newCredential.publicKey,
+                    aaguid: newCredential.aaguid,
+                    transports: newCredential.transports,
+                    createdAt: newCredential.createdAt
+                });
+            } catch (auditError) {
+                console.error("Failed to log passkey registration to audit:", auditError);
+            }
 
             await this.persistence.updateUserLoginStatus(user.id, user);
             return { status: STATUS.SUCCESS, credentialId: credentialIdB64 };
