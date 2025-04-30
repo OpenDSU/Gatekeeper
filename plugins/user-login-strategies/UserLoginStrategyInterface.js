@@ -20,7 +20,6 @@ class UserLoginStrategyInterface {
      * @returns {Promise<Object>} Auth-specific data for userExists response.
      */
     async handleUserExists(_user) {
-        // Default implementation returns basic info
         return { authType: _user?.authType || AUTH_TYPES.EMAIL };
     }
 
@@ -31,7 +30,6 @@ class UserLoginStrategyInterface {
      * @returns {Promise<void>} 
      */
     async handleCreateUser(_userPayload, _registrationData) {
-        // Default: No specific modifications needed
         return Promise.resolve();
     }
 
@@ -55,7 +53,6 @@ class UserLoginStrategyInterface {
      * @returns {Promise<Object>} Result object, potentially indicating failure for non-email types.
      */
     async handleGetUserValidationCode(_user) {
-        // Default: Indicate failure or unsupported operation
         return { status: STATUS.FAILED, reason: ERROR_REASONS.OPERATION_NOT_SUPPORTED };
     }
 

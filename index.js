@@ -2,27 +2,27 @@ const path = require("path");
 const auth = require("./handlers/auth");
 const process = require("process");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
-const {authenticationMiddleware, bodyReader} = require("./middlewares");
-const {getCookies} = require("./utils/apiUtils");
+const { authenticationMiddleware, bodyReader } = require("./middlewares");
+const { getCookies } = require("./utils/apiUtils");
 const constants = require("./utils/constants");
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
-    if(!process.env.SERVERLESS_STORAGE){
+    if (!process.env.SERVERLESS_STORAGE) {
         console.error("SERVERLESS_STORAGE is missing, defaults to 'external-volume/appStorage'");
         process.env.SERVERLESS_STORAGE = path.join(server.rootFolder, "external-volume", "appStorage");
     }
-    if(!process.env.SERVERLESS_ID){
+    if (!process.env.SERVERLESS_ID) {
         console.error("SERVERLESS_ID is missing setting default - gatekeeper");
         process.env.SERVERLESS_ID = constants.SERVERLESS_ID;
     }
-    setTimeout(async ()=>{
+    setTimeout(async () => {
         const serverlessAPI = await server.createServerlessAPI({
             urlPrefix: process.env.SERVERLESS_ID,
             storage: path.resolve(process.env.SERVERLESS_STORAGE),
             env: process.env,
         });
         server.registerServerlessProcess(process.env.SERVERLESS_ID, serverlessAPI);
-    },0);
+    }, 0);
     server.use(`/proxy/*`, bodyReader);
     server.use(`/proxy/*`, authenticationMiddleware);
 
@@ -49,8 +49,10 @@ module.exports = async function (server) {
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);
 
     server.post(`${AUTH_API_PREFIX}/registerNewPasskey`, auth.registerNewPasskey);
-    
-    // TOTP endpoints
+
     server.post(`${AUTH_API_PREFIX}/registerTotp`, auth.registerTotp);
+
     server.post(`${AUTH_API_PREFIX}/verifyTotp`, auth.verifyTotp);
+
+    server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
 }

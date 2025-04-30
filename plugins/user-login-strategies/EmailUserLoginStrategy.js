@@ -9,17 +9,34 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
     }
 
     async handleUserExists(user) {
-        return { authType: AUTH_TYPES.EMAIL };
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
+        return {
+            authTypes: user.authTypes,
+            activeAuthType: AUTH_TYPES.EMAIL
+        };
     }
 
-    async handleCreateUser(userPayload, registrationData) {
+    async handleCreateUser(userPayload) {
+        if (!userPayload.authTypes) {
+            userPayload.authTypes = [AUTH_TYPES.EMAIL];
+        } else if (!userPayload.authTypes.includes(AUTH_TYPES.EMAIL)) {
+            userPayload.authTypes.push(AUTH_TYPES.EMAIL);
+        }
+
         userPayload.validationEmailCode = generateValidationCode(5);
         userPayload.validationEmailCodeTimestamp = new Date().toISOString();
     }
 
-    async handleAuthorizeUser(user, loginData, _challengeKey) {
+    async handleAuthorizeUser(user, loginData) {
         const code = loginData;
         let now = new Date().getTime();
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
 
         if (user.validationEmailCode === code) {
             if (!user.validationEmailCodeTimestamp || now - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout) {
@@ -38,13 +55,17 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
     }
 
     async handleGetUserValidationCode(user) {
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
         user.validationEmailCode = generateValidationCode(5);
         user.validationEmailCodeTimestamp = new Date().toISOString();
         await this.persistence.updateUserLoginStatus(user.id, user);
         return {
             status: STATUS.SUCCESS,
             code: user.validationEmailCode,
-            authType: AUTH_TYPES.EMAIL
+            authTypes: user.authTypes
         };
     }
 }

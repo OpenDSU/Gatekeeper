@@ -1,7 +1,6 @@
 const { generateId, generateWalletKey } = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
-const process = require("process");
 const loginChallenges = new Map();
 const crypto = require("crypto");
 
@@ -31,34 +30,41 @@ async function UserLogin() {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (userExists) {
             let user = await persistence.getUserLoginStatus(email);
-            const strategy = getStrategy(user.authType);
+            if (!user.authTypes && user.authType) {
+                user.authTypes = [user.authType];
+                await persistence.updateUserLoginStatus(user.id, user);
+            }
+
+            const defaultAuthType = user.authTypes && user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL;
+            const strategy = getStrategy(defaultAuthType);
             const strategyResult = await strategy.handleUserExists(user);
 
             return {
                 status: STATUS.SUCCESS,
                 userExists: true,
+                authTypes: user.authTypes || [AUTH_TYPES.EMAIL],
                 ...strategyResult
             };
         }
-        // User doesn't exist
         return {
             status: STATUS.SUCCESS,
-            userExists: false
+            userExists: false,
+            authTypes: [AUTH_TYPES.EMAIL]
         };
     }
 
-    self.createUser = async function (email, name, referrerId, authType, registrationData) {
+    self.createUser = async function (email, name, referrerId, defaultAuthType, registrationData) {
         let walletKey = generateWalletKey();
         name = name || email.split("@")[0];
         let userAsset = await CreditManager.addUser(email, name, referrerId);
-        authType = authType || AUTH_TYPES.EMAIL;
-        const strategy = getStrategy(authType);
+        defaultAuthType = defaultAuthType || AUTH_TYPES.EMAIL;
+        const strategy = getStrategy(defaultAuthType);
 
         let userPayload = {
             globalUserId: userAsset.id,
             email: email,
             walletKey: walletKey,
-            authType: authType,
+            authTypes: [defaultAuthType],
             passkeyCredentials: [],
             totpSecret: undefined,
             totpEnabled: false,
@@ -87,8 +93,18 @@ async function UserLogin() {
             throw new Error("Passkey strategy not available or invalid.");
         }
 
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
         try {
             const result = await strategy.handleRegisterNewPasskey(user, registrationData);
+
+            if (!user.authTypes.includes(AUTH_TYPES.PASSKEY)) {
+                user.authTypes.push(AUTH_TYPES.PASSKEY);
+                await persistence.updateUserLoginStatus(user.id, user);
+            }
+
             return result;
         } catch (e) {
             console.error("Error during registerNewPasskey handling:", e);
@@ -126,7 +142,18 @@ async function UserLogin() {
             }
         }
 
-        const authMethodToUse = loginMethod || user.authType || AUTH_TYPES.EMAIL;
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
+        if (loginMethod && !user.authTypes.includes(loginMethod)) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.AUTH_METHOD_NOT_AVAILABLE
+            };
+        }
+
+        const authMethodToUse = loginMethod || (user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL);
         const strategy = getStrategy(authMethodToUse);
 
         let verificationResult;
@@ -172,12 +199,17 @@ async function UserLogin() {
                 status: STATUS.SUCCESS,
                 code: user.validationEmailCode,
                 walletKey: user.walletKey,
-                authType: AUTH_TYPES.EMAIL
+                authTypes: user.authTypes || [AUTH_TYPES.EMAIL]
             };
         }
 
         user = await persistence.getUserLoginStatus(email);
-        const strategy = getStrategy(user.authType);
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
+        const strategy = getStrategy(AUTH_TYPES.EMAIL);
 
         if (user.loginAttempts >= maxLoginAttempts) {
             if (user.lastLoginAttempt && new Date().getTime() < user.lastLoginAttempt + expiryTimeout) {
@@ -205,11 +237,17 @@ async function UserLogin() {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_SESSION_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(session.userLoginId);
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
         return {
             status: STATUS.SUCCESS,
             globalUserId: user.globalUserId,
             email: user.email,
-            walletKey: user.walletKey
+            walletKey: user.walletKey,
+            authTypes: user.authTypes
         };
     }
 
@@ -233,10 +271,15 @@ async function UserLogin() {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
         const userInfoPayload = {
             ...(user.userInfo || {}),
             email: user.email,
-            authType: user.authType,
+            authTypes: user.authTypes,
             totpEnabled: user.totpEnabled,
             totpPendingSetup: user.totpPendingSetup,
             passkeyCredentials: (user.passkeyCredentials || []).map(cred => ({
@@ -296,6 +339,11 @@ async function UserLogin() {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
         const strategy = strategies.totp;
         if (!strategy || typeof strategy.handleSetTotpSecret !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
@@ -318,6 +366,11 @@ async function UserLogin() {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
         const strategy = strategies[AUTH_TYPES.TOTP];
         if (!strategy || typeof strategy.handleVerifyAndEnableTotp !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
@@ -326,6 +379,10 @@ async function UserLogin() {
         try {
             const result = await strategy.handleVerifyAndEnableTotp(user, token);
             if (result.verified) {
+                if (!user.authTypes.includes(AUTH_TYPES.TOTP)) {
+                    user.authTypes.push(AUTH_TYPES.TOTP);
+                    await persistence.updateUserLoginStatus(user.id, user);
+                }
                 return { status: STATUS.SUCCESS };
             } else {
                 return { status: STATUS.FAILED, reason: result.reason || ERROR_REASONS.INVALID_TOTP_CODE };
@@ -349,7 +406,7 @@ module.exports = {
         return singletonInstance;
     },
     getAllow: function () {
-        return async function (globalUserId, email, command, ...args) {
+        return async function () {
             return true;
         }
     },

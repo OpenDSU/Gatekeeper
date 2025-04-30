@@ -7,12 +7,29 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
     }
 
     async handleUserExists(user) {
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
+        const hasTotpAuth = user.authTypes.includes(AUTH_TYPES.TOTP);
+
         if (user.totpSecret && user.totpEnabled) {
-            return { authType: AUTH_TYPES.TOTP };
+            return {
+                authTypes: user.authTypes,
+                activeAuthType: AUTH_TYPES.TOTP
+            };
         } else if (user.totpSecret && !user.totpEnabled) {
-            return { authType: AUTH_TYPES.TOTP, setupPending: true };
+            return {
+                authTypes: user.authTypes,
+                activeAuthType: hasTotpAuth ? AUTH_TYPES.TOTP : user.authTypes[0],
+                setupPending: true
+            };
         } else {
-            return { authType: AUTH_TYPES.TOTP, error: ERROR_REASONS.INCOMPLETE_TOTP_SETUP };
+            return {
+                authTypes: user.authTypes,
+                activeAuthType: user.authTypes[0],
+                error: ERROR_REASONS.INCOMPLETE_TOTP_SETUP
+            };
         }
     }
 
@@ -20,6 +37,12 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         userPayload.totpSecret = undefined;
         userPayload.totpEnabled = false;
         userPayload.totpPendingSetup = true;
+
+        if (!userPayload.authTypes) {
+            userPayload.authTypes = [AUTH_TYPES.TOTP];
+        } else if (!userPayload.authTypes.includes(AUTH_TYPES.TOTP)) {
+            userPayload.authTypes.push(AUTH_TYPES.TOTP);
+        }
     }
 
     async handleAuthorizeUser(user, loginData, _challengeKey) {
@@ -27,6 +50,10 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
 
         if (typeof totpCode !== 'string') {
             return { verified: false, reason: ERROR_REASONS.INVALID_TOTP_FORMAT };
+        }
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
         }
 
         if (!user.totpSecret || !user.totpEnabled) {
@@ -60,7 +87,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         return {
             status: STATUS.FAILED,
             reason: ERROR_REASONS.USE_TOTP,
-            authType: AUTH_TYPES.TOTP
+            authTypes: _user.authTypes || [AUTH_TYPES.TOTP]
         };
     }
 
@@ -68,12 +95,25 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         user.totpSecret = secret;
         user.totpEnabled = false;
         user.totpPendingSetup = true;
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
+        if (!user.authTypes.includes(AUTH_TYPES.TOTP)) {
+            user.authTypes.push(AUTH_TYPES.TOTP);
+        }
+
         await this.persistence.updateUserLoginStatus(user.id, user);
     }
 
     async handleVerifyAndEnableTotp(user, token) {
         if (!user.totpSecret) {
             return { verified: false, reason: ERROR_REASONS.TOTP_SETUP_NOT_INITIATED };
+        }
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
         }
 
         try {
@@ -91,7 +131,10 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
             if (delta !== null) {
                 user.totpEnabled = true;
                 user.totpPendingSetup = false;
-                user.authType = AUTH_TYPES.TOTP;
+
+                if (!user.authTypes.includes(AUTH_TYPES.TOTP)) {
+                    user.authTypes.push(AUTH_TYPES.TOTP);
+                }
 
                 user.validationEmailCode = undefined;
                 user.validationEmailCodeTimestamp = undefined;

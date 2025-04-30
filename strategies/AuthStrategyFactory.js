@@ -1,7 +1,7 @@
 const EmailAuthStrategy = require('./EmailAuthStrategy');
 const PasskeyAuthStrategy = require('./PasskeyAuthStrategy');
 const TotpAuthStrategy = require('./TotpAuthStrategy');
-
+const { AUTH_TYPES } = require('../constants/authConstants');
 /**
  * Factory for creating authentication strategy objects
  */
@@ -46,8 +46,12 @@ class AuthStrategyFactory {
     async getStrategyForUser(email) {
         const userInfo = await this.strategies.email.checkUserExists(email);
 
+        const authTypeToUse = userInfo.activeAuthType ||
+            (userInfo.authTypes && userInfo.authTypes.length > 0 ?
+                userInfo.authTypes[0] : AUTH_TYPES.EMAIL);
+
         return {
-            strategy: this.getStrategy(userInfo.authType),
+            strategy: this.getStrategy(authTypeToUse),
             userInfo: userInfo
         };
     }

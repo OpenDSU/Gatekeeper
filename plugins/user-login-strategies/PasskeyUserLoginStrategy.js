@@ -7,17 +7,20 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
     }
 
     async handleUserExists(user) {
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
+
         if (user.passkeyCredentials && user.passkeyCredentials.length > 0) {
             const allowCredentials = user.passkeyCredentials.map(cred => ({
                 type: 'public-key',
                 id: cred.id,
-                // transports: cred.transports,
+                transports: cred.transports
             }));
 
             const challenge = this.crypto.randomBytes(32).toString("base64url");
             const challengeKey = `login_challenge_${user.email}_${Date.now()}`;
-            this.loginChallenges.set(challengeKey, challenge); // Store challenge temporarily
-            // Auto-clear challenge after a timeout (e.g., 5 minutes)
+            this.loginChallenges.set(challengeKey, challenge);
             setTimeout(() => this.loginChallenges.delete(challengeKey), 5 * 60 * 1000);
 
             const publicKeyCredentialRequestOptions = {
@@ -29,12 +32,16 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             };
 
             return {
-                authType: AUTH_TYPES.PASSKEY,
+                authTypes: user.authTypes,
+                activeAuthType: AUTH_TYPES.PASSKEY,
                 publicKeyCredentialRequestOptions: JSON.stringify(publicKeyCredentialRequestOptions),
                 challengeKey: challengeKey
             };
         } else {
-            return { authType: AUTH_TYPES.PASSKEY };
+            return {
+                authTypes: user.authTypes,
+                activeAuthType: user.authTypes[0]
+            };
         }
     }
 
@@ -42,6 +49,13 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         if (!registrationData) {
             throw new Error("Missing registration data for passkey user creation.");
         }
+
+        if (!userPayload.authTypes) {
+            userPayload.authTypes = [AUTH_TYPES.PASSKEY];
+        } else if (!userPayload.authTypes.includes(AUTH_TYPES.PASSKEY)) {
+            userPayload.authTypes.push(AUTH_TYPES.PASSKEY);
+        }
+
         try {
             const credentialInfo = await this.webauthnUtils.verifyRegistrationResponse(
                 registrationData,
@@ -70,6 +84,10 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
 
     async handleAuthorizeUser(user, loginData, challengeKey) {
         const assertion = loginData;
+
+        if (!user.authTypes) {
+            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+        }
 
         if (!assertion || typeof assertion !== 'object' || !assertion.id || !challengeKey) {
             return { verified: false, reason: ERROR_REASONS.INVALID_PASSKEY_LOGIN_DATA };
@@ -126,12 +144,20 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         return {
             status: STATUS.FAILED,
             reason: ERROR_REASONS.ACCOUNT_USES_PASSKEY,
-            authType: AUTH_TYPES.PASSKEY
+            authTypes: user.authTypes || [AUTH_TYPES.PASSKEY]
         };
     }
 
     async handleRegisterNewPasskey(user, registrationData) {
         try {
+            if (!user.authTypes) {
+                user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            }
+
+            if (!user.authTypes.includes(AUTH_TYPES.PASSKEY)) {
+                user.authTypes.push(AUTH_TYPES.PASSKEY);
+            }
+
             const credentialInfo = await this.webauthnUtils.verifyRegistrationResponse(
                 registrationData,
                 undefined,

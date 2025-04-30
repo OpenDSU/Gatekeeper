@@ -1,6 +1,6 @@
 const AuthStrategyInterface = require('./AuthStrategyInterface');
 const otpauth = require('../authenticator/totp/otpauth/index.cjs');
-const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
+const { AUTH_TYPES, STATUS, TOTP_SETTINGS } = require('../constants/authConstants');
 class TotpAuthStrategy extends AuthStrategyInterface {
     constructor(userLoginPlugin) {
         super();
@@ -39,7 +39,7 @@ class TotpAuthStrategy extends AuthStrategyInterface {
         const secret = new otpauth.Secret();
 
         const totp = new otpauth.TOTP({
-            issuer: 'OutfinityGift',
+            issuer: TOTP_SETTINGS.ISSUER,
             label: email,
             algorithm: 'SHA1',
             digits: 6,
@@ -105,7 +105,7 @@ class TotpAuthStrategy extends AuthStrategyInterface {
         const secret = new otpauth.Secret();
 
         const totp = new otpauth.TOTP({
-            issuer: 'OutfinityGift',
+            issuer: TOTP_SETTINGS.ISSUER,
             label: email,
             algorithm: 'SHA1',
             digits: 6,

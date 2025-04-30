@@ -66,7 +66,7 @@ const CREDENTIAL = {
 
 // TOTP Settings
 const TOTP_SETTINGS = {
-    ISSUER: 'OutfinityGift',
+    ISSUER: process.env.APP_NAME,
     ALGORITHM: 'SHA1',
     DIGITS: 6,
     PERIOD: 30
