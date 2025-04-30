@@ -55,7 +55,7 @@ const generateAuthCode = async function (req, res) {
     try {
         parsedData = JSON.parse(authData);
         utils.validateEmail(parsedData.email);
-        if (parsedData.authType === AUTH_TYPES.PASSKEY && !parsedData.registrationData) {
+        if (parsedData.activeAuthType === AUTH_TYPES.PASSKEY && !parsedData.registrationData) {
             throw new Error("Missing registrationData for passkey signup.");
         }
     } catch (e) {

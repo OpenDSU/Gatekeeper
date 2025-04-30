@@ -30,8 +30,8 @@ async function UserLogin() {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (userExists) {
             let user = await persistence.getUserLoginStatus(email);
-            if (!user.authTypes && user.authType) {
-                user.authTypes = [user.authType];
+            if (!user.authTypes && user.activeAuthType) {
+                user.authTypes = [user.activeAuthType];
                 await persistence.updateUserLoginStatus(user.id, user);
             }
 
@@ -94,7 +94,7 @@ async function UserLogin() {
         }
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         try {
@@ -143,7 +143,7 @@ async function UserLogin() {
         }
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         if (loginMethod && !user.authTypes.includes(loginMethod)) {
@@ -206,7 +206,7 @@ async function UserLogin() {
         user = await persistence.getUserLoginStatus(email);
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         const strategy = getStrategy(AUTH_TYPES.EMAIL);
@@ -239,7 +239,7 @@ async function UserLogin() {
         let user = await persistence.getUserLoginStatus(session.userLoginId);
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         return {
@@ -273,7 +273,7 @@ async function UserLogin() {
         let user = await persistence.getUserLoginStatus(email);
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         const userInfoPayload = {
@@ -341,7 +341,7 @@ async function UserLogin() {
         let user = await persistence.getUserLoginStatus(email);
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         const strategy = strategies[AUTH_TYPES.TOTP];
@@ -368,7 +368,7 @@ async function UserLogin() {
         let user = await persistence.getUserLoginStatus(email);
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         const strategy = strategies[AUTH_TYPES.TOTP];

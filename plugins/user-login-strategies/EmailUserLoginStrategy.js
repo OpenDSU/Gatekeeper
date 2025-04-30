@@ -10,7 +10,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
 
     async handleUserExists(user) {
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         return {
@@ -35,7 +35,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
         let now = new Date().getTime();
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         if (user.validationEmailCode === code) {
@@ -56,7 +56,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
 
     async handleGetUserValidationCode(user) {
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         user.validationEmailCode = generateValidationCode(5);

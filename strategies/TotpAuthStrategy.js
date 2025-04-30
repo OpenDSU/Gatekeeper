@@ -10,20 +10,20 @@ class TotpAuthStrategy extends AuthStrategyInterface {
     async checkUserExists(email) {
         const response = await this.userLogin.userExists(email);
 
-        if (response.userExists && response.authType === AUTH_TYPES.TOTP) {
+        if (response.userExists && response.activeAuthType === AUTH_TYPES.TOTP) {
             return {
                 userExists: true,
-                authType: AUTH_TYPES.TOTP
+                activeAuthType: AUTH_TYPES.TOTP
             };
         } else if (response.userExists) {
             return {
                 userExists: true,
-                authType: response.authType
+                activeAuthType: response.activeAuthType
             };
         }
         return {
             userExists: false,
-            authType: AUTH_TYPES.TOTP
+            activeAuthType: AUTH_TYPES.TOTP
         };
     }
 

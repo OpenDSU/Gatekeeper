@@ -20,7 +20,7 @@ class UserLoginStrategyInterface {
      * @returns {Promise<Object>} Auth-specific data for userExists response.
      */
     async handleUserExists(_user) {
-        return { authType: _user?.authType || AUTH_TYPES.EMAIL };
+        return { authType: _user?.activeAuthType || AUTH_TYPES.EMAIL };
     }
 
     /**

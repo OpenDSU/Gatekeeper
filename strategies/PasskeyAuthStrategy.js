@@ -10,22 +10,22 @@ class PasskeyAuthStrategy extends AuthStrategyInterface {
     async checkUserExists(email) {
         const response = await this.userLogin.userExists(email);
 
-        if (response.userExists && response.authType === AUTH_TYPES.PASSKEY) {
+        if (response.userExists && response.activeAuthType === AUTH_TYPES.PASSKEY) {
             return {
                 userExists: true,
-                authType: AUTH_TYPES.PASSKEY,
+                activeAuthType: AUTH_TYPES.PASSKEY,
                 publicKeyCredentialRequestOptions: response.publicKeyCredentialRequestOptions,
                 challengeKey: response.challengeKey
             };
         } else if (response.userExists) {
             return {
                 userExists: true,
-                authType: response.authType
+                activeAuthType: response.activeAuthType
             };
         }
         return {
             userExists: false,
-            authType: AUTH_TYPES.PASSKEY
+            activeAuthType: AUTH_TYPES.PASSKEY
         };
     }
 

@@ -11,7 +11,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
 
     async handleUserExists(user) {
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         if (user.passkeyCredentials && user.passkeyCredentials.length > 0) {
@@ -108,7 +108,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         const assertion = loginData;
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         if (!assertion || typeof assertion !== 'object' || !assertion.id || !challengeKey) {
@@ -173,7 +173,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
     async handleRegisterNewPasskey(user, registrationData) {
         try {
             if (!user.authTypes) {
-                user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+                user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
             }
 
             if (!user.authTypes.includes(AUTH_TYPES.PASSKEY)) {

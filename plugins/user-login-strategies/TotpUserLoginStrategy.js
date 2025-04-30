@@ -8,7 +8,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
 
     async handleUserExists(user) {
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         const hasTotpAuth = user.authTypes.includes(AUTH_TYPES.TOTP);
@@ -53,7 +53,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         if (!user.totpSecret || !user.totpEnabled) {
@@ -97,7 +97,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         user.totpPendingSetup = true;
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         if (!user.authTypes.includes(AUTH_TYPES.TOTP)) {
@@ -113,7 +113,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
 
         if (!user.authTypes) {
-            user.authTypes = user.authType ? [user.authType] : [AUTH_TYPES.EMAIL];
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
         try {
