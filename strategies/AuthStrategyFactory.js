@@ -43,14 +43,24 @@ class AuthStrategyFactory {
      * @param {string} email - The user's email address
      * @returns {Promise<Object>} The appropriate strategy and user info
      */
-    async getStrategyForUser(email) {
+    async getStrategyForUser(email, loginMethod) {
         const userInfo = await this.strategies[AUTH_TYPES.EMAIL].checkUserExists(email);
+
+        if (loginMethod &&
+            userInfo.authTypes &&
+            userInfo.authTypes.includes(loginMethod)) {
+            return this.getStrategy(loginMethod);
+        }
+
+        if (loginMethod === AUTH_TYPES.EMAIL) {
+            return this.getStrategy(AUTH_TYPES.EMAIL);
+        }
 
         const authTypeToUse = userInfo.activeAuthType ||
             (userInfo.authTypes && userInfo.authTypes.length > 0 ?
                 userInfo.authTypes[0] : AUTH_TYPES.EMAIL);
 
-        return this.getStrategy(authTypeToUse)
+        return this.getStrategy(authTypeToUse);
     }
 }
 

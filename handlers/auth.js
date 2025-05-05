@@ -135,9 +135,7 @@ const walletLogin = async (req, res) => {
     try {
         const { email, loginMethod } = parsedData;
 
-        const strategyType = loginMethod === AUTH_TYPES.EMAIL ? AUTH_TYPES.EMAIL : loginMethod;
-
-        const strategy = authStrategyFactory.getStrategy(strategyType);
+        const strategy = await authStrategyFactory.getStrategyForUser(email, loginMethod);
 
         const result = await strategy.login(parsedData);
 
@@ -427,9 +425,14 @@ const getAuthTypes = async function (req, res) {
         const userInfo = userInfoResult.userInfo;
         const authMethods = [];
 
+        authMethods.push({
+            type: AUTH_TYPES.EMAIL,
+            createdAt: userInfo.createdAt || null
+        });
+
         if (userInfo.authTypes && userInfo.authTypes.length > 0) {
             userInfo.authTypes.forEach(authType => {
-                if (authType !== AUTH_TYPES.PASSKEY) {
+                if (authType !== AUTH_TYPES.EMAIL && authType !== AUTH_TYPES.PASSKEY) {
                     authMethods.push({
                         type: authType,
                         createdAt: userInfo.createdAt || null

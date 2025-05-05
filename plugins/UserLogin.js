@@ -97,6 +97,10 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
+        if (!user.authTypes.includes(AUTH_TYPES.EMAIL)) {
+            user.authTypes.push(AUTH_TYPES.EMAIL);
+        }
+
         try {
             const result = await strategy.handleRegisterNewPasskey(user, registrationData);
 
@@ -144,6 +148,12 @@ async function UserLogin() {
 
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
+        }
+
+        // Ensure email auth is always in the authTypes list
+        if (!user.authTypes.includes(AUTH_TYPES.EMAIL)) {
+            user.authTypes.push(AUTH_TYPES.EMAIL);
+            await persistence.updateUserLoginStatus(user.id, user);
         }
 
         if (loginMethod && !user.authTypes.includes(loginMethod)) {
@@ -369,6 +379,10 @@ async function UserLogin() {
 
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
+        }
+
+        if (!user.authTypes.includes(AUTH_TYPES.EMAIL)) {
+            user.authTypes.push(AUTH_TYPES.EMAIL);
         }
 
         const strategy = strategies[AUTH_TYPES.TOTP];
