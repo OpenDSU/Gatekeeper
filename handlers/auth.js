@@ -187,7 +187,7 @@ const registerNewPasskey = async (req, res) => {
 
         let result = await passkeyStrategy.registerNewPasskey(email, registrationData);
 
-        if (result.status) {
+        if (result.success) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ operation: "success", credentialId: result.credentialId }));
             logger.info(`Successfully registered new passkey for user ${email}`);
