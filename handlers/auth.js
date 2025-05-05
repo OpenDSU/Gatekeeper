@@ -39,14 +39,13 @@ const userExists = async function (req, res) {
 
         const strategy = await authStrategyFactory.getStrategyForUser(email);
         response = await strategy.checkUserExists(email);
-
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ account_exists: response.userExists, ...response }));
     } catch (err) {
         logger.error(`Error in userExists for ${req.params.email}: ${err.message}`, err.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: err.message }));
     }
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ account_exists: response.userExists, ...response }));
 }
 
 const generateAuthCode = async function (req, res) {
@@ -418,7 +417,7 @@ const getAuthTypes = async function (req, res) {
 
         const userInfoResult = await userLoginClient.getUserInfo(email);
 
-        if (userInfoResult.status !== AUTH_TYPES.STATUS.SUCCESS) {
+        if (userInfoResult.status !== STATUS.SUCCESS) {
             throw new Error(userInfoResult.reason || "Failed to get user information");
         }
 
