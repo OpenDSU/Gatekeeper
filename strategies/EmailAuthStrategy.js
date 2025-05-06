@@ -21,7 +21,7 @@ class EmailAuthStrategy extends BaseAuthStrategy {
         const result = await this.userLogin.getUserValidationEmailCode(email, name, referrerId);
 
         if (result.status === STATUS.SUCCESS) {
-            let responseMessage = { result: STATUS.SUCCESS };
+            let responseMessage = { status: STATUS.SUCCESS };
             if (process.env.NODE_ENV === 'development' || data.origin === "http://localhost:8080") {
                 responseMessage.code = result.code;
             } else if (this.emailPlugin) {

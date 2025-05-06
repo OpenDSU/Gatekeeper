@@ -42,7 +42,7 @@ class TotpAuthStrategy extends BaseAuthStrategy {
         }
 
         return {
-            result: STATUS.SUCCESS,
+            status: STATUS.SUCCESS,
             message: "TOTP registration successful.",
             uri: otpUri,
             secret: secret.base32,

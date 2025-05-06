@@ -35,7 +35,7 @@ class PasskeyAuthStrategy extends BaseAuthStrategy {
 
         if (result.status === STATUS.SUCCESS) {
             return {
-                result: STATUS.SUCCESS,
+                status: STATUS.SUCCESS,
                 message: "Passkey registration successful.",
                 walletKey: result.walletKey
             };
