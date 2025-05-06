@@ -407,7 +407,17 @@ const verifyTotp = async (req, res) => {
 
 const getAuthTypes = async function (req, res) {
     try {
-        let { email } = req.params;
+        let email = req.params.email;
+        if (!email) {
+            if (!req.email) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({
+                    status: STATUS.FAILED,
+                    message: "No email provided"
+                }));
+            }
+            email = req.email;
+        }
         email = decodeURIComponent(email);
         utils.validateEmail(email);
 
@@ -490,6 +500,56 @@ const getAuthTypes = async function (req, res) {
     }
 }
 
+const deletePasskey = async function (req, res) {
+    try {
+        let email = req.params.email;
+        if (!email) {
+            if (!req.email) {
+                res.statusCode = 400;
+                return res.end(JSON.stringify({
+                    status: STATUS.FAILED,
+                    message: "No email provided"
+                }));
+            }
+            email = req.email;
+        }
+        email = decodeURIComponent(email);
+        utils.validateEmail(email);
+
+        if (!req.params.credentialId) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({
+                status: STATUS.FAILED,
+                message: "No credential ID provided"
+            }));
+        }
+        const credentialId = decodeURIComponent(req.params.credentialId);
+        const api = await initAPIClient(req, constants.USER_PLUGIN);
+        const result = await api.deletePasskey(email, credentialId);
+
+        if (result.status !== STATUS.SUCCESS) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({
+                status: STATUS.FAILED,
+                message: result.reason || "Failed to delete passkey"
+            }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: STATUS.SUCCESS,
+            message: result.message || "Passkey successfully deleted"
+        }));
+    } catch (error) {
+        console.error("Error in deletePasskey handler:", error);
+        res.statusCode = 500;
+        return res.end(JSON.stringify({
+            status: STATUS.FAILED,
+            message: "An error occurred while deleting the passkey"
+        }));
+    }
+};
+
 module.exports = {
     generateAuthCode,
     walletLogin,
@@ -500,5 +560,6 @@ module.exports = {
     registerNewPasskey,
     registerTotp,
     verifyTotp,
-    getAuthTypes
+    getAuthTypes,
+    deletePasskey
 }

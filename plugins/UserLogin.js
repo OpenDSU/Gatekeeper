@@ -305,6 +305,31 @@ async function UserLogin() {
         };
     }
 
+    self.deletePasskey = async function (email, credentialId) {
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
+        }
+
+        let user = await persistence.getUserLoginStatus(email);
+
+        if (!user.authTypes) {
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
+        }
+
+        const strategy = strategies[AUTH_TYPES.PASSKEY];
+        if (!strategy || typeof strategy.handleDeletePasskey !== 'function') {
+            throw new Error("Passkey strategy not available or invalid.");
+        }
+
+        try {
+            return await strategy.handleDeletePasskey(user, credentialId);
+        } catch (e) {
+            console.error(`Error deleting passkey for ${email}:`, e);
+            return { status: STATUS.FAILED, reason: `Failed to delete passkey: ${e.message}` };
+        }
+    }
+
     self.setUserInfo = async function (email, userInfo) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {

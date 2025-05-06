@@ -50,6 +50,8 @@ module.exports = async function (server) {
 
     server.post(`${AUTH_API_PREFIX}/registerNewPasskey`, auth.registerNewPasskey);
 
+    server.delete(`${AUTH_API_PREFIX}/deletePasskey/:email/:credentialId`, auth.deletePasskey);
+
     server.post(`${AUTH_API_PREFIX}/registerTotp`, auth.registerTotp);
 
     server.post(`${AUTH_API_PREFIX}/verifyTotp`, auth.verifyTotp);

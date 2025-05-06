@@ -41,6 +41,11 @@ const ERROR_REASONS = {
     MISSING_REGISTRATION_DATA: "Missing registration data for passkey signup.",
     PASSKEY_ALREADY_REGISTERED: "This passkey is already registered for this account.",
     USE_PASSKEY: "Account uses passkey authentication. Please use your passkey to log in.",
+    PASSKEY_NOT_FOUND: "The specified passkey was not found.",
+    NO_PASSKEYS_REGISTERED: "No passkeys are registered for this account.",
+    CANNOT_DELETE_LAST_AUTH_METHOD: "Cannot delete the last authentication method for your account.",
+    INVALID_REGISTRATION_DATA: "Invalid or missing passkey registration data.",
+    CREDENTIAL_ALREADY_EXISTS: "This credential is already registered.",
 
     // TOTP specific
     INVALID_TOTP_FORMAT: "Invalid TOTP code format.",

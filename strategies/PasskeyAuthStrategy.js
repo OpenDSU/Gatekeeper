@@ -105,6 +105,26 @@ class PasskeyAuthStrategy extends AuthStrategyInterface {
             throw new Error(result.reason || "Failed to register additional passkey");
         }
     }
+
+    async deletePasskey(email, credentialId) {
+        if (!credentialId) {
+            throw new Error("Missing credential ID for passkey deletion.");
+        }
+
+        const result = await this.userLogin.deletePasskey(email, credentialId);
+
+        if (result.status === STATUS.SUCCESS) {
+            return {
+                success: true,
+                message: result.message || "Passkey deleted successfully"
+            };
+        } else {
+            return {
+                success: false,
+                error: result.reason || "Failed to delete passkey"
+            };
+        }
+    }
 }
 
 module.exports = PasskeyAuthStrategy; 

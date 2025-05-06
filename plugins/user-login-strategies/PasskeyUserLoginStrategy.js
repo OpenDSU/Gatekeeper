@@ -262,6 +262,66 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             };
         }
     }
+
+    async handleDeletePasskey(user, credentialId) {
+        if (!user.passkeyCredentials || user.passkeyCredentials.length === 0) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.NO_PASSKEYS_REGISTERED
+            };
+        }
+
+        const passKeyIndex = user.passkeyCredentials.findIndex(cred => cred.id === credentialId);
+
+        if (passKeyIndex === -1) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.PASSKEY_NOT_FOUND
+            };
+        }
+
+        const hasOtherAuthMethods = user.authTypes && user.authTypes.length > 1;
+        const isLastPasskey = user.passkeyCredentials.length === 1;
+
+        if (isLastPasskey && !hasOtherAuthMethods) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.CANNOT_DELETE_LAST_AUTH_METHOD
+            };
+        }
+
+        const passkey = user.passkeyCredentials[passKeyIndex];
+        const passkeyName = passkey.name || 'Unknown';
+
+        user.passkeyCredentials.splice(passKeyIndex, 1);
+
+        if (user.passkeyCredentials.length === 0 && user.authTypes) {
+            const passKeyAuthIndex = user.authTypes.indexOf(AUTH_TYPES.PASSKEY);
+            if (passKeyAuthIndex !== -1) {
+                user.authTypes.splice(passKeyAuthIndex, 1);
+            }
+        }
+
+        await this.persistence.updateUserLoginStatus(user.id, user);
+
+        try {
+            const systemAudit = SystemAudit.getSystemAudit();
+            await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_DELETE, {
+                email: user.email,
+                credentialId: credentialId,
+                passkeyName: passkeyName
+            });
+        } catch (auditError) {
+            console.error("Failed to log passkey deletion to audit:", auditError);
+        }
+
+        console.log(`Deleted passkey "${passkeyName}" for user ${user.email}`);
+
+        return {
+            status: STATUS.SUCCESS,
+            message: `Passkey "${passkeyName}" was successfully deleted`
+        };
+    }
 }
 
 module.exports = PasskeyUserLoginStrategy; 
