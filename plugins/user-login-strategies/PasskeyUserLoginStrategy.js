@@ -3,10 +3,35 @@ const process = require("process");
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../../constants/authConstants');
 const AUDIT_EVENTS = require('../../Persisto/src/audit/AuditEvents.cjs');
 const SystemAudit = require('../../Persisto/src/audit/SystemAudit.cjs');
+const fs = require('fs');
+const path = require('path');
+
+// Load authenticator name map
+const authenticatorNameMap = JSON.parse(
+    fs.readFileSync(path.join(__dirname, '../../authenticator/webauthn/authenticatorNameMap.json'), 'utf8')
+);
 
 class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
     constructor(persistence, webauthnUtils, crypto, loginChallenges) {
         super(persistence, webauthnUtils, crypto, loginChallenges);
+    }
+
+    /**
+     * Get the human-readable authenticator name from an AAGUID
+     * @param {Buffer|string} aaguid - The AAGUID as Buffer or hex string
+     * @returns {string} The authenticator name or a fallback name
+     */
+    getAuthenticatorName(aaguid) {
+
+        const aaguidHex = Buffer.isBuffer(aaguid) ? aaguid.toString('hex') : aaguid;
+        const aaguidFormatted = [
+            aaguidHex.slice(0, 8),
+            aaguidHex.slice(8, 12),
+            aaguidHex.slice(12, 16),
+            aaguidHex.slice(16, 20),
+            aaguidHex.slice(20, 32)
+        ].join('-');
+        return authenticatorNameMap[aaguidFormatted] || 'Unknown Authenticator';
     }
 
     async handleUserExists(user) {
@@ -70,17 +95,21 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
 
             const credentialId = credentialInfo.credentialId.toString('base64url');
             const publicKey = credentialInfo.credentialPublicKey.toString('base64url');
-            const aaguid = credentialInfo.aaguid.toString('base64url');
+
+            // Get the AAGUID and get authenticator name
+            const aaguidHex = credentialInfo.aaguid.toString('hex');
+            const authenticatorName = this.getAuthenticatorName(aaguidHex);
+
             const transports = registrationData.response.transports || [];
 
             userPayload.passkeyCredentials = [{
                 id: credentialId,
                 publicKey: publicKey,
                 signCount: credentialInfo.signCount,
-                aaguid: aaguid,
+                aaguid: aaguidHex,
                 fmt: credentialInfo.attestationFormat,
                 transports: transports,
-                name: "Primary Passkey",
+                name: authenticatorName,
                 createdAt: new Date().toISOString()
             }];
 
@@ -90,7 +119,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
                     email: userPayload.email,
                     credentialId: credentialId,
                     publicKey: publicKey,
-                    aaguid: aaguid,
+                    aaguid: aaguidHex,
                     transports: transports,
                     createdAt: new Date().toISOString()
                 });
@@ -171,16 +200,15 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
     }
 
     async handleRegisterNewPasskey(user, registrationData) {
+        if (!registrationData) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.INVALID_REGISTRATION_DATA
+            };
+        }
+
         try {
-            if (!user.authTypes) {
-                user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
-            }
-
-            if (!user.authTypes.includes(AUTH_TYPES.PASSKEY)) {
-                user.authTypes.push(AUTH_TYPES.PASSKEY);
-            }
-
-            const credentialInfo = await this.webauthnUtils.verifyRegistrationResponse(
+            const verificationResult = await this.webauthnUtils.verifyRegistrationResponse(
                 registrationData,
                 undefined,
                 process.env.ORIGIN,
@@ -188,49 +216,50 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
                 true
             );
 
+            const aaguidHex = verificationResult.aaguid.toString('hex');
+            const authenticatorName = this.getAuthenticatorName(aaguidHex);
+
             if (!user.passkeyCredentials) {
                 user.passkeyCredentials = [];
             }
-            const credentialIdB64 = credentialInfo.credentialId.toString('base64url');
-            const existingCredential = user.passkeyCredentials.find(cred => cred.id === credentialIdB64);
+
+            const existingCredential = user.passkeyCredentials.find(
+                cred => cred.id === verificationResult.credentialId.toString('base64url')
+            );
+
             if (existingCredential) {
-                throw new Error("This passkey is already registered for this account.");
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.CREDENTIAL_ALREADY_EXISTS
+                };
             }
 
             const newCredential = {
-                id: credentialIdB64,
-                publicKey: credentialInfo.credentialPublicKey.toString('base64url'),
-                signCount: credentialInfo.signCount,
-                aaguid: credentialInfo.aaguid.toString('base64url'),
-                fmt: credentialInfo.attestationFormat,
+                id: verificationResult.credentialId.toString('base64url'),
+                publicKey: verificationResult.credentialPublicKey,
+                signCount: verificationResult.signCount,
+                aaguid: aaguidHex,
+                name: authenticatorName,
                 transports: registrationData.response.transports || [],
-                name: `Passkey added ${new Date().toLocaleDateString()}`,
                 createdAt: new Date().toISOString()
             };
 
             user.passkeyCredentials.push(newCredential);
-
-            try {
-                const systemAudit = SystemAudit.getSystemAudit();
-                await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_REGISTER, {
-                    userID: user.id,
-                    email: user.email,
-                    credentialId: credentialIdB64,
-                    publicKey: newCredential.publicKey,
-                    aaguid: newCredential.aaguid,
-                    transports: newCredential.transports,
-                    createdAt: newCredential.createdAt
-                });
-            } catch (auditError) {
-                console.error("Failed to log passkey registration to audit:", auditError);
-            }
-
             await this.persistence.updateUserLoginStatus(user.id, user);
-            return { status: STATUS.SUCCESS, credentialId: credentialIdB64 };
 
+            console.log(`Added new passkey for user ${user.email} with authenticator: ${authenticatorName}`);
+
+            return {
+                status: STATUS.SUCCESS,
+                credentialId: newCredential.id,
+                name: authenticatorName
+            };
         } catch (e) {
-            console.error("Failed to register new passkey:", e);
-            throw new Error(`Failed to register new passkey: ${e.message}`);
+            console.error("Error during passkey registration:", e);
+            return {
+                status: STATUS.FAILED,
+                reason: `Passkey registration failed: ${e.message}`
+            };
         }
     }
 }
