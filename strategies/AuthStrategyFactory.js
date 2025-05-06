@@ -41,7 +41,8 @@ class AuthStrategyFactory {
     /**
      * Determine the best strategy for a user based on email lookup
      * @param {string} email - The user's email address
-     * @returns {Promise<Object>} The appropriate strategy and user info
+     * @param {string} loginMethod - Optional preferred login method
+     * @returns {Promise<Object>} The appropriate strategy
      */
     async getStrategyForUser(email, loginMethod) {
         const userInfo = await this.strategies[AUTH_TYPES.EMAIL].checkUserExists(email);

@@ -1,31 +1,19 @@
-const AuthStrategyInterface = require('./AuthStrategyInterface');
+const BaseAuthStrategy = require('./BaseAuthStrategy');
 const logger = $$.getLogger("apis", "auth.email");
 const process = require('process');
 const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
-class EmailAuthStrategy extends AuthStrategyInterface {
+
+class EmailAuthStrategy extends BaseAuthStrategy {
     constructor(userLoginPlugin, emailPlugin) {
-        super();
-        this.userLogin = userLoginPlugin;
+        super(userLoginPlugin);
         this.emailPlugin = emailPlugin;
+        this.defaultAuthType = AUTH_TYPES.EMAIL;
     }
 
-    async checkUserExists(email) {
-        const response = await this.userLogin.userExists(email);
-        if (response.userExists && response.activeAuthType === AUTH_TYPES.EMAIL) {
-            return {
-                userExists: true,
-                activeAuthType: AUTH_TYPES.EMAIL
-            };
-        } else if (response.userExists) {
-            return {
-                userExists: true,
-                activeAuthType: response.activeAuthType
-            };
-        }
-        return {
-            userExists: false,
-            activeAuthType: AUTH_TYPES.EMAIL
-        };
+    // eslint-disable-next-line no-unused-vars
+    getAuthMetadata(userResponse) {
+        // Email auth doesn't need additional metadata beyond what the base class provides
+        return {};
     }
 
     async generateAuthData(data) {

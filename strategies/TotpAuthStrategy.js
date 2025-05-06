@@ -1,30 +1,16 @@
-const AuthStrategyInterface = require('./AuthStrategyInterface');
+const BaseAuthStrategy = require('./BaseAuthStrategy');
 const otpauth = require('../authenticator/totp/otpauth/index.cjs');
 const { AUTH_TYPES, STATUS, TOTP_SETTINGS } = require('../constants/authConstants');
-class TotpAuthStrategy extends AuthStrategyInterface {
+
+class TotpAuthStrategy extends BaseAuthStrategy {
     constructor(userLoginPlugin) {
-        super();
-        this.userLogin = userLoginPlugin;
+        super(userLoginPlugin);
+        this.defaultAuthType = AUTH_TYPES.TOTP;
     }
 
-    async checkUserExists(email) {
-        const response = await this.userLogin.userExists(email);
-
-        if (response.userExists && response.activeAuthType === AUTH_TYPES.TOTP) {
-            return {
-                userExists: true,
-                activeAuthType: AUTH_TYPES.TOTP
-            };
-        } else if (response.userExists) {
-            return {
-                userExists: true,
-                activeAuthType: response.activeAuthType
-            };
-        }
-        return {
-            userExists: false,
-            activeAuthType: AUTH_TYPES.TOTP
-        };
+    // eslint-disable-next-line no-unused-vars
+    getAuthMetadata(userResponse) {
+        return {};
     }
 
     async generateAuthData(data) {

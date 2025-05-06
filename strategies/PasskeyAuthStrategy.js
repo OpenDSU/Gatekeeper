@@ -1,32 +1,27 @@
-const AuthStrategyInterface = require('./AuthStrategyInterface');
+const BaseAuthStrategy = require('./BaseAuthStrategy');
 const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
 
-class PasskeyAuthStrategy extends AuthStrategyInterface {
+class PasskeyAuthStrategy extends BaseAuthStrategy {
     constructor(userLoginPlugin) {
-        super();
-        this.userLogin = userLoginPlugin;
+        super(userLoginPlugin);
+        this.defaultAuthType = AUTH_TYPES.PASSKEY;
     }
 
-    async checkUserExists(email) {
-        const response = await this.userLogin.userExists(email);
 
-        if (response.userExists && response.activeAuthType === AUTH_TYPES.PASSKEY) {
-            return {
-                userExists: true,
-                activeAuthType: AUTH_TYPES.PASSKEY,
-                publicKeyCredentialRequestOptions: response.publicKeyCredentialRequestOptions,
-                challengeKey: response.challengeKey
-            };
-        } else if (response.userExists) {
-            return {
-                userExists: true,
-                activeAuthType: response.activeAuthType
-            };
+    getAuthMetadata(userResponse) {
+        let metadata = {};
+
+        // Include passkey-specific fields even if passkey is not the active auth type
+        if (userResponse.userExists) {
+            if (userResponse.publicKeyCredentialRequestOptions) {
+                metadata.publicKeyCredentialRequestOptions = userResponse.publicKeyCredentialRequestOptions;
+            }
+            if (userResponse.challengeKey) {
+                metadata.challengeKey = userResponse.challengeKey;
+            }
         }
-        return {
-            userExists: false,
-            activeAuthType: AUTH_TYPES.PASSKEY
-        };
+
+        return metadata;
     }
 
     async generateAuthData(data) {

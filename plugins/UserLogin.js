@@ -39,6 +39,18 @@ async function UserLogin() {
             const strategy = getStrategy(defaultAuthType);
             const strategyResult = await strategy.handleUserExists(user);
 
+            if (user.passkeyCredentials && user.passkeyCredentials.length > 0 && defaultAuthType !== AUTH_TYPES.PASSKEY) {
+                const passkeyStrategy = getStrategy(AUTH_TYPES.PASSKEY);
+                const passkeyResult = await passkeyStrategy.handleUserExists(user);
+
+                if (passkeyResult.publicKeyCredentialRequestOptions) {
+                    strategyResult.publicKeyCredentialRequestOptions = passkeyResult.publicKeyCredentialRequestOptions;
+                }
+                if (passkeyResult.challengeKey) {
+                    strategyResult.challengeKey = passkeyResult.challengeKey;
+                }
+            }
+
             return {
                 status: STATUS.SUCCESS,
                 userExists: true,

@@ -39,8 +39,33 @@ const userExists = async function (req, res) {
 
         const strategy = await authStrategyFactory.getStrategyForUser(email);
         response = await strategy.checkUserExists(email);
+
+        const responseData = {
+            account_exists: response.userExists,
+            activeAuthType: response.activeAuthType,
+            authTypes: response.authTypes || []
+        };
+
+        if (response.userExists) {
+            if (response.authMetadata.publicKeyCredentialRequestOptions) {
+                responseData.publicKeyCredentialRequestOptions = response.authMetadata.publicKeyCredentialRequestOptions;
+            }
+            if (response.authMetadata.challengeKey) {
+                responseData.challengeKey = response.authMetadata.challengeKey;
+            }
+
+            // Include other auth-specific metadata
+            if (response.authMetadata && Object.keys(response.authMetadata).length > 0) {
+                Object.keys(response.authMetadata).forEach(key => {
+                    if (key !== 'publicKeyCredentialRequestOptions' && key !== 'challengeKey') {
+                        responseData[key] = response.authMetadata[key];
+                    }
+                });
+            }
+        }
+
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ account_exists: response.userExists, ...response }));
+        res.end(JSON.stringify(responseData));
     } catch (err) {
         logger.error(`Error in userExists for ${req.params.email}: ${err.message}`, err.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
