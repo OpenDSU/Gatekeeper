@@ -550,6 +550,48 @@ const deletePasskey = async function (req, res) {
     }
 };
 
+const deleteTotp = async function (req, res) {
+    try {
+        let email = req.params.email;
+        if (!email) {
+            if (!req.email) {
+                res.statusCode = 401;
+                return res.end(JSON.stringify({
+                    status: STATUS.FAILED,
+                    message: "You must be logged in to delete TOTP authentication"
+                }));
+            }
+            email = req.email;
+        }
+        email = decodeURIComponent(email);
+        utils.validateEmail(email);
+
+        const api = await initAPIClient(req, constants.USER_PLUGIN);
+        const result = await api.deleteTotp(email);
+
+        if (result.status !== STATUS.SUCCESS) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({
+                status: STATUS.FAILED,
+                message: result.reason || "Failed to delete TOTP authentication"
+            }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: STATUS.SUCCESS,
+            message: result.message || "TOTP authentication successfully deleted"
+        }));
+    } catch (error) {
+        console.error("Error in deleteTotp handler:", error);
+        res.statusCode = 500;
+        return res.end(JSON.stringify({
+            status: STATUS.FAILED,
+            message: "An error occurred while deleting TOTP authentication"
+        }));
+    }
+};
+
 module.exports = {
     generateAuthCode,
     walletLogin,
@@ -561,5 +603,6 @@ module.exports = {
     registerTotp,
     verifyTotp,
     getAuthTypes,
-    deletePasskey
+    deletePasskey,
+    deleteTotp
 }

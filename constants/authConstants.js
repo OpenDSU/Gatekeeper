@@ -53,7 +53,9 @@ const ERROR_REASONS = {
     INVALID_TOTP_CODE: "Invalid TOTP code.",
     TOTP_SETUP_NOT_INITIATED: "TOTP setup not initiated",
     USE_TOTP: "Account uses TOTP authentication.",
-    INCOMPLETE_TOTP_SETUP: "Incomplete TOTP setup"
+    INCOMPLETE_TOTP_SETUP: "Incomplete TOTP setup",
+    TOTP_ALREADY_ENABLED: "TOTP authentication is already enabled.",
+    FAILED_TO_DELETE_TOTP: "Failed to delete TOTP authentication."
 };
 
 // Success Messages

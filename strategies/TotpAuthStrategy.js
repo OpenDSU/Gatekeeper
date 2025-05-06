@@ -143,6 +143,22 @@ class TotpAuthStrategy extends AuthStrategyInterface {
             };
         }
     }
+
+    async deleteTotp(email) {
+        const result = await this.userLogin.deleteTotp(email);
+
+        if (result.status === STATUS.SUCCESS) {
+            return {
+                success: true,
+                message: result.message || "TOTP authentication removed successfully"
+            };
+        } else {
+            return {
+                success: false,
+                error: result.reason || "Failed to remove TOTP authentication"
+            };
+        }
+    }
 }
 
 module.exports = TotpAuthStrategy; 

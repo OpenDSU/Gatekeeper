@@ -150,7 +150,6 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        // Ensure email auth is always in the authTypes list
         if (!user.authTypes.includes(AUTH_TYPES.EMAIL)) {
             user.authTypes.push(AUTH_TYPES.EMAIL);
             await persistence.updateUserLoginStatus(user.id, user);
@@ -330,6 +329,31 @@ async function UserLogin() {
         }
     }
 
+    self.deleteTotp = async function (email) {
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
+        }
+
+        let user = await persistence.getUserLoginStatus(email);
+
+        if (!user.authTypes) {
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
+        }
+
+        const strategy = strategies[AUTH_TYPES.TOTP];
+        if (!strategy || typeof strategy.handleDeleteTotp !== 'function') {
+            throw new Error("TOTP strategy not available or invalid.");
+        }
+
+        try {
+            return await strategy.handleDeleteTotp(user);
+        } catch (e) {
+            console.error(`Error deleting TOTP for ${email}:`, e);
+            return { status: STATUS.FAILED, reason: `Failed to delete TOTP: ${e.message}` };
+        }
+    }
+
     self.setUserInfo = async function (email, userInfo) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
@@ -392,9 +416,6 @@ async function UserLogin() {
         }
     }
 
-    /**
-     * Verify TOTP code and enable TOTP for the user if verification succeeds
-     */
     self.verifyAndEnableTotp = async function (email, token) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {

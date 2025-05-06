@@ -1,6 +1,5 @@
 const UserLoginStrategyInterface = require('./UserLoginStrategyInterface');
 const { AUTH_TYPES, STATUS, ERROR_REASONS, TOTP_SETTINGS } = require('../../constants/authConstants');
-
 class TotpUserLoginStrategy extends UserLoginStrategyInterface {
     constructor(persistence, webauthnUtils, crypto, loginChallenges) {
         super(persistence, webauthnUtils, crypto, loginChallenges);
@@ -33,7 +32,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleCreateUser(userPayload, _registrationData) {
+    async handleCreateUser(userPayload) {
         userPayload.totpSecret = undefined;
         userPayload.totpEnabled = false;
         userPayload.totpPendingSetup = true;
@@ -45,7 +44,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleAuthorizeUser(user, loginData, _challengeKey) {
+    async handleAuthorizeUser(user, loginData) {
         const totpCode = loginData;
 
         if (typeof totpCode !== 'string') {
@@ -148,6 +147,44 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
             console.error("TOTP verification error during enable:", error);
             return { verified: false, reason: `Verification error: ${error.message}` };
         }
+    }
+
+    async handleDeleteTotp(user) {
+        if (!user.totpEnabled && !user.totpPendingSetup) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.TOTP_NOT_ENABLED
+            };
+        }
+
+        const hasOtherAuthMethods = user.authTypes && user.authTypes.length > 1;
+
+        if (!hasOtherAuthMethods) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.CANNOT_DELETE_LAST_AUTH_METHOD
+            };
+        }
+
+        user.totpSecret = undefined;
+        user.totpEnabled = false;
+        user.totpPendingSetup = false;
+
+        if (user.authTypes) {
+            const totpAuthIndex = user.authTypes.indexOf(AUTH_TYPES.TOTP);
+            if (totpAuthIndex !== -1) {
+                user.authTypes.splice(totpAuthIndex, 1);
+            }
+        }
+
+        await this.persistence.updateUserLoginStatus(user.id, user);
+
+        console.log(`Deleted TOTP authentication for user ${user.email}`);
+
+        return {
+            status: STATUS.SUCCESS,
+            message: "TOTP authentication was successfully removed"
+        };
     }
 }
 
