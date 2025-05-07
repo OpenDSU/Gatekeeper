@@ -116,12 +116,8 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             try {
                 const systemAudit = SystemAudit.getSystemAudit();
                 await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_REGISTER, {
-                    email: userPayload.email,
-                    credentialId: credentialId,
+                    userId: userPayload.globalUserId,
                     publicKey: publicKey,
-                    aaguid: aaguidHex,
-                    transports: transports,
-                    createdAt: new Date().toISOString()
                 });
             } catch (auditError) {
                 console.error("Failed to log initial passkey registration to audit:", auditError);
@@ -307,8 +303,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         try {
             const systemAudit = SystemAudit.getSystemAudit();
             await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_DELETE, {
-                email: user.email,
-                credentialId: credentialId,
+                userId: user.globalUserId,
                 passkeyName: passkeyName
             });
         } catch (auditError) {
