@@ -17,12 +17,17 @@ async function initAPIClient(req, pluginName) {
         userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { sessionId: sessionId }
     );
 }
-
+async function initAPIClientAdmin(req, pluginName) {
+    const userId = req.userId || '*';
+    return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
+        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY }
+    );
+}
 let factoryInitialized = false;
 async function ensureFactoryInitialized(req) {
     if (!factoryInitialized) {
-        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
-        const emailClient = await initAPIClient(req, constants.EMAIL_PLUGIN);
+        const userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
+        const emailClient = await initAPIClientAdmin(req, constants.EMAIL_PLUGIN);
         authStrategyFactory.init(userLoginClient, emailClient);
         factoryInitialized = true;
     }
@@ -448,7 +453,7 @@ const getAuthTypes = async function (req, res) {
 
         await ensureFactoryInitialized(req);
 
-        let userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
+        let userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
 
         const userInfoResult = await userLoginClient.getUserInfo(email);
 

@@ -11,16 +11,10 @@ async function authenticationMiddleware(req, res, next) {
         return next();
     }
 
-    const whitelistMethods = ["userExists", "checkSessionId", "getUserValidationEmailCode", "authorizeUser"]
     if(req.body){
         let parsedBody = JSON.parse(req.body);
         if(parsedBody.options.authToken){
             if(parsedBody.options.authToken === process.env.SSO_SECRETS_ENCRYPTION_KEY){
-                return next();
-            }
-        }
-        for(let method of whitelistMethods){
-            if(parsedBody.name === method){
                 return next();
             }
         }
