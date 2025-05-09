@@ -92,8 +92,7 @@ async function CreditManager() {
     }
 
     self.confiscateLockedPoints = async function (id, amount, reason) {
-        let user = await persistence.getUser(id);
-        await persistence.confiscateLockedPoints(id, amount, reason);
+        return await persistence.confiscateLockedPoints(id, amount, reason);
     }
 
     self.getUserLogs = async function (userID) {
@@ -133,7 +132,28 @@ module.exports = {
     },
     getAllow: function () {
         return async function (globalUserId, email, command, ...args) {
-            return true; // Implement proper permission logic here
+            switch (command) {
+                case "transfer":
+                case "safeTransfer":
+                    if (globalUserId === args[1]) {
+                        return true;
+                    }
+                    return false;
+                case "claimFounder":
+                case "getTotalBalance":
+                case "balance":
+                case "lockedBalance":
+                case "confiscateLockedPoints":
+                case "getUserLogs":
+                case "getUser":
+                case "loginEvent":
+                    if (globalUserId === args[0]) {
+                        return true;
+                    }
+                    return false;
+                default:
+                    return true;
+            }
         }
     },
     getDependencies: function () {
