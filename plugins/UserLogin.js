@@ -129,7 +129,7 @@ async function UserLogin() {
     }
 
     async function createSessionForUser(user) {
-        let sessionId = generateId(16);
+        let sessionId = generateId(32);
         await persistence.createSession({
             userLoginId: user.id,
             sessionId: sessionId
