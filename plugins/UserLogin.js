@@ -2,6 +2,7 @@ const { generateId, generateWalletKey } = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
 const loginChallenges = new Map();
+const sessionCache = new Map();
 const crypto = require("crypto");
 
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../constants/authConstants');
@@ -134,6 +135,15 @@ async function UserLogin() {
             userLoginId: user.id,
             sessionId: sessionId
         });
+        sessionCache.set(sessionId, {
+            userLoginId: user.id,
+            globalUserId: user.globalUserId,
+            email: user.email,
+            walletKey: user.walletKey,
+            authTypes: user.authTypes
+        });
+
+        console.log("sessionCache", sessionCache);
         return sessionId;
     }
 
@@ -248,6 +258,10 @@ async function UserLogin() {
     };
 
     self.checkSessionId = async function (sessionId) {
+        if (sessionCache.has(sessionId)) {
+            return { status: STATUS.SUCCESS, ...sessionCache.get(sessionId) };
+        }
+
         let sessionExists = await persistence.hasSession(sessionId);
         if (!sessionExists) {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.SESSION_NOT_EXISTS };
@@ -263,18 +277,25 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        return {
-            status: STATUS.SUCCESS,
+        const sessionData = {
             globalUserId: user.globalUserId,
             email: user.email,
             walletKey: user.walletKey,
             authTypes: user.authTypes
+        };
+
+        sessionCache.set(sessionId, { userLoginId: user.id, ...sessionData });
+
+        return {
+            status: STATUS.SUCCESS,
+            ...sessionData
         };
     }
 
     self.logout = async function (sessionId) {
         try {
             await persistence.deleteSession(sessionId);
+            sessionCache.delete(sessionId);
             return { status: STATUS.SUCCESS };
         } catch (e) {
             console.error(`Error deleting session ${sessionId}:`, e);
