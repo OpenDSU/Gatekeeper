@@ -1,3 +1,4 @@
+const { STATUS } = require("../constants/authConstants");
 const {getCookies} = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 const process = require("process");
@@ -25,7 +26,7 @@ async function authenticationMiddleware(req, res, next) {
     const baseURL = system.getBaseURL();
     let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL,  process.env.SERVERLESS_ID , constants.USER_PLUGIN, "",{authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY});
     let response = await client.checkSessionId(req.sessionId);
-    if(response.status === "success"){
+    if(response.status === STATUS.SUCCESS){
         req.userId = response.globalUserId;
         req.email = response.email;
         req.walletKey = response.walletKey;
