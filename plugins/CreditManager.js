@@ -1,3 +1,5 @@
+const process = require("process");
+
 async function CreditManager() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
@@ -37,8 +39,20 @@ async function CreditManager() {
         console.log("Tick...");
     }
 
-    self.mint = async function (amount) {
+    //keep 10% (default) of the minted amount for the founder reward
+    self.mint = async function (amount, founderRewardPercentage = 10) {
         await persistence.mintPoints(amount);
+        let user = await persistence.createUser({
+            email: process.env.SYSADMIN_EMAIL,
+            name: "sysadmin",
+            invitingUserID: "",
+            level: 3,
+            lockedAmountUntilValidation: 0,
+            lockedAmountForInvitingUser: 0
+        });
+
+        await self.claimFounder(user.id, amount / founderRewardPercentage);
+        return user;
     }
 
     self.claimFounder = async function (userID, amount) {
