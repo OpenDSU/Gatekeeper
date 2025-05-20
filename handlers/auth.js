@@ -14,13 +14,13 @@ async function initAPIClient(req, pluginName) {
     const userId = req.userId || '*';
     const sessionId = req.sessionId || undefined;
     return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
-        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { sessionId: sessionId }
+        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { sessionId: sessionId, email: req.email }
     );
 }
 async function initAPIClientAdmin(req, pluginName) {
     const userId = req.userId || '*';
     return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
-        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY }
+        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY, email: req.email }
     );
 }
 let factoryInitialized = false;

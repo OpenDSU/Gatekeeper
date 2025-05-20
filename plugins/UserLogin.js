@@ -499,7 +499,7 @@ module.exports = {
         return singletonInstance;
     },
     getAllow: function () {
-        return async function () {
+        return async function (globalUserId, email, command, ...args) {
             return true;
         }
     },
