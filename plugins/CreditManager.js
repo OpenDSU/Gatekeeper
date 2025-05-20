@@ -42,7 +42,7 @@ async function CreditManager() {
     //keep 10% (default) of the minted amount for the founder reward
     self.mint = async function (amount, founderRewardPercentage = 10) {
         await persistence.mintPoints(amount);
-        let user = await persistence.createUser({
+        let founder = await persistence.createUser({
             email: process.env.SYSADMIN_EMAIL,
             name: "sysadmin",
             invitingUserID: "",
@@ -51,13 +51,13 @@ async function CreditManager() {
             lockedAmountForInvitingUser: 0
         });
 
-        await self.claimFounder(user.id, amount / founderRewardPercentage);
-        return user;
+        await persistence.rewardFounder(founder.id, amount / founderRewardPercentage, "Founder reward");
+        return founder;
     }
 
-    self.claimFounder = async function (userID, amount) {
-        await persistence.rewardFounder(userID, amount, "Founder reward");
-    }
+    /* self.claimFounder = async function (userID, amount) {
+         await persistence.rewardFounder(userID, amount, "Founder reward");
+     }*/
 
     self.addUser = async function (email, name, referrerId) {
         let user = await persistence.createUser({
@@ -68,7 +68,7 @@ async function CreditManager() {
             lockedAmountUntilValidation: 0,
             lockedAmountForInvitingUser: 0
         });
-        await AppSpecificPlugin.rewardUser(user, referrerId);
+        await AppSpecificPlugin.rewardUser(user.id, referrerId);
         return user;
     }
 
@@ -153,11 +153,11 @@ module.exports = {
                         return true;
                     }
                     return false;
-                case "claimFounder":
+                // case "claimFounder":
                 case "getTotalBalance":
                 case "balance":
                 case "lockedBalance":
-                case "confiscateLockedPoints":
+                //  case "confiscateLockedPoints":
                 case "getUserLogs":
                 case "getUser":
                 case "loginEvent":
