@@ -140,10 +140,11 @@ async function UserLogin() {
             globalUserId: user.globalUserId,
             email: user.email,
             walletKey: user.walletKey,
-            authTypes: user.authTypes
+            authTypes: user.authTypes,
+            sessionId: sessionId
         });
 
-        console.log("sessionCache", sessionCache);
+        console.log("DEBUG----------: sessionCache", sessionCache);
         return sessionId;
     }
 
@@ -267,6 +268,7 @@ async function UserLogin() {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.SESSION_NOT_EXISTS };
         }
         let session = await persistence.getSession(sessionId);
+        console.log("DEBUG----------: session", session);
         let userExists = await persistence.hasUserLoginStatus(session.userLoginId);
         if (!userExists) {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_SESSION_NOT_EXISTS };
