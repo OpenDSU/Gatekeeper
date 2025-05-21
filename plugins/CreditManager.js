@@ -50,7 +50,6 @@ async function CreditManager() {
             lockedAmountUntilValidation: 0,
             lockedAmountForInvitingUser: 0
         });
-
         await persistence.rewardFounder(founder.id, amount / founderRewardPercentage, "Founder reward");
         return founder;
     }
@@ -157,7 +156,7 @@ module.exports = {
                 case "getTotalBalance":
                 case "balance":
                 case "lockedBalance":
-                //  case "confiscateLockedPoints":
+                case "confiscateLockedPoints":
                 case "getUserLogs":
                 case "getUser":
                 case "loginEvent":
@@ -165,8 +164,16 @@ module.exports = {
                         return true;
                     }
                     return false;
+                case "mint":
+                    if (globalUserId === "*") {
+                        return true;
+                    }
+                    return false;
+                case "addUser":
+                case "getSystemAvailablePoints":
+                    return true
                 default:
-                    return true;
+                    return false;
             }
         }
     },
