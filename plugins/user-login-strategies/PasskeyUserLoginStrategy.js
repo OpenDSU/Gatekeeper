@@ -1,11 +1,10 @@
 const UserLoginStrategyInterface = require('./UserLoginStrategyInterface');
-const process = require("process");
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../../constants/authConstants');
 const AUDIT_EVENTS = require('../../Persisto/src/audit/AuditEvents.cjs');
 const SystemAudit = require('../../Persisto/src/audit/SystemAudit.cjs');
 const fs = require('fs');
 const path = require('path');
-
+const ROOTS_PEM_PATH = path.join(__dirname, '../../roots.pem');
 // Load authenticator name map
 const authenticatorNameMap = JSON.parse(
     fs.readFileSync(path.join(__dirname, '../../authenticator/webauthn/authenticatorNameMap.json'), 'utf8')
@@ -84,13 +83,19 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             userPayload.authTypes.push(AUTH_TYPES.PASSKEY);
         }
 
+        if (!this.parsedTrustedRoots) {
+            const rootsPem = fs.readFileSync(ROOTS_PEM_PATH, 'utf8');
+            this.parsedTrustedRoots = this.webauthnUtils.parseRootsPem(rootsPem);
+        }
+
         try {
             const credentialInfo = await this.webauthnUtils.verifyRegistrationResponse(
                 registrationData,
                 undefined,
                 process.env.ORIGIN,
                 process.env.RP_ID,
-                true
+                true,
+                this.parsedTrustedRoots
             );
 
             const credentialId = credentialInfo.credentialId.toString('base64url');
@@ -160,13 +165,19 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
                 signCount: storedCredential.signCount
             };
 
+            if (!this.parsedTrustedRoots) {
+                const rootsPem = fs.readFileSync(ROOTS_PEM_PATH, 'utf8');
+                this.parsedTrustedRoots = this.webauthnUtils.parseRootsPem(rootsPem);
+            }
+
             const verificationResult = await this.webauthnUtils.verifyAssertionResponse(
                 assertion,
                 credentialForVerification,
                 challenge,
                 process.env.ORIGIN,
                 process.env.RP_ID,
-                true
+                true,
+                this.parsedTrustedRoots
             );
 
             const updatedSignCount = verificationResult.newSignCount;
