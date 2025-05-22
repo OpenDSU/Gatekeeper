@@ -38,7 +38,7 @@ async function CreditManager() {
     self.tickTack = function () {
         console.log("Tick...");
     }
-
+    self.persistence = persistence;
     //keep 10% (default) of the minted amount for the founder reward
     self.mint = async function (amount, founderRewardPercentage = 10) {
         await persistence.mintPoints(amount);
