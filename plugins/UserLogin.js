@@ -53,7 +53,6 @@ async function UserLogin() {
                     strategyResult.challengeKey = passkeyResult.challengeKey;
                 }
             }
-
             return {
                 status: STATUS.SUCCESS,
                 userExists: true,
@@ -543,12 +542,17 @@ module.exports = {
                     }
                     return false;
                 case "authorizeUser":
+                case "getUserInfo":
                     if (globalUserId === "*") {
+                        return true;
+                    }
+                    user = await singletonInstance.persistence.getUserLoginStatus(email);
+                    if (user.globalUserId === globalUserId) {
                         return true;
                     }
                     return false;
                 case "registerNewPasskey":
-                case "getUserInfo":
+
                 case "deletePasskey":
                 case "deleteTotp":
                 case "setUserInfo":
