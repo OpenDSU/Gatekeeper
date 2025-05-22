@@ -2,7 +2,7 @@ const path = require("path");
 const auth = require("./handlers/auth");
 const process = require("process");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
-const { authenticationMiddleware, bodyReader } = require("./middlewares");
+const { authenticationMiddleware, bodyReader, securityMiddleware } = require("./middlewares");
 const { getCookies } = require("./utils/apiUtils");
 const constants = require("./utils/constants");
 module.exports = async function (server) {
@@ -26,12 +26,14 @@ module.exports = async function (server) {
     server.use(`/proxy/*`, bodyReader);
     server.use(`/proxy/*`, authenticationMiddleware);
 
+    server.use(`${AUTH_API_PREFIX}/*`, securityMiddleware);
+
     server.use(`${AUTH_API_PREFIX}/*`, (req, res, next) => {
         let cookies = getCookies(req);
         req.sessionId = cookies['sessionId'];
         req.userId = cookies['userId'];
         req.walletKey = cookies['walletKey'];
-        req.email = decodeURIComponent(cookies['email']);
+        req.email = cookies['email'] ? decodeURIComponent(cookies['email']) : undefined;
         next();
     });
     server.get(`${AUTH_API_PREFIX}/userExists/:email`, auth.userExists);
@@ -60,8 +62,8 @@ module.exports = async function (server) {
 
     server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
     server.get(`${AUTH_API_PREFIX}/passKeyConfig`, async (req, res) => {
-        let config = {rp_id: process.env.RP_ID, app_name: process.env.APP_NAME}
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        let config = { rp_id: process.env.RP_ID, app_name: process.env.APP_NAME }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(config));
     })
 }

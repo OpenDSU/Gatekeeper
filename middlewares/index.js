@@ -2,6 +2,8 @@ const { STATUS } = require("../constants/authConstants");
 const { getCookies } = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 const process = require("process");
+const { securityMiddleware } = require("./securityMiddleware");
+
 async function authenticationMiddleware(req, res, next) {
     let cookies = getCookies(req);
     req.sessionId = cookies['sessionId'];
@@ -57,5 +59,6 @@ function bodyReader(request, response, next) {
 
 module.exports = {
     authenticationMiddleware,
-    bodyReader
+    bodyReader,
+    securityMiddleware
 };
