@@ -1,7 +1,7 @@
 const BaseAuthStrategy = require('./BaseAuthStrategy');
 const logger = $$.getLogger("apis", "auth.email");
 const process = require('process');
-const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
+const {AUTH_TYPES, STATUS} = require('../constants/authConstants');
 
 class EmailAuthStrategy extends BaseAuthStrategy {
     constructor(userLoginPlugin, emailPlugin) {
@@ -17,11 +17,11 @@ class EmailAuthStrategy extends BaseAuthStrategy {
     }
 
     async generateAuthData(data) {
-        const { email, name, referrerId } = data;
+        const {email, name, referrerId} = data;
         const result = await this.userLogin.getUserValidationEmailCode(email, name, referrerId);
 
         if (result.status === STATUS.SUCCESS) {
-            let responseMessage = { status: STATUS.SUCCESS };
+            let responseMessage = {status: STATUS.SUCCESS};
             if (process.env.NODE_ENV === 'development' || data.origin === "http://localhost:8080") {
                 responseMessage.code = result.code;
             } else if (this.emailPlugin) {
@@ -30,6 +30,7 @@ class EmailAuthStrategy extends BaseAuthStrategy {
                     let text = `Your authentication code is: ${result.code}`;
                     let html = `Your authentication code is: <strong>${result.code}</strong>`;
                     await this.emailPlugin.sendEmail(
+                        result.userId,
                         email,
                         process.env.SENDGRID_SENDER_EMAIL,
                         subject,
@@ -48,7 +49,7 @@ class EmailAuthStrategy extends BaseAuthStrategy {
     }
 
     async login(loginData) {
-        const { email, code } = loginData;
+        const {email, code} = loginData;
         const result = await this.userLogin.authorizeUser(email, code, undefined, AUTH_TYPES.EMAIL);
 
         if (result.status === STATUS.SUCCESS) {
@@ -69,7 +70,7 @@ class EmailAuthStrategy extends BaseAuthStrategy {
     }
 
     async createUser(userData) {
-        const { email, name, referrerId } = userData;
+        const {email, name, referrerId} = userData;
         const result = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.EMAIL, null);
 
         if (result.status === STATUS.SUCCESS) {

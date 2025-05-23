@@ -63,6 +63,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
         user.validationEmailCodeTimestamp = new Date().toISOString();
         await this.persistence.updateUserLoginStatus(user.id, user);
         return {
+            userId: user.id,
             status: STATUS.SUCCESS,
             code: user.validationEmailCode,
             authTypes: user.authTypes
