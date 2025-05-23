@@ -558,14 +558,14 @@ module.exports = {
                 case "setUserInfo":
                 case "incrementLoginAttempts":
                 case "resetLoginAttempts":
-                case "setTotpSecret":
-                case "verifyAndEnableTotp":
                     console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
                     user = await singletonInstance.persistence.getUserLoginStatus(email);
                     if (user.globalUserId === globalUserId) {
                         return true;
                     }
                     return false;
+                case "verifyAndEnableTotp":
+                case "setTotpSecret":
                 case "getUserValidationEmailCode":
                     if (globalUserId === "*") {
                         return true;
