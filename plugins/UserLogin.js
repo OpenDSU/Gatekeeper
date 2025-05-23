@@ -548,30 +548,30 @@ module.exports = {
                     if (globalUserId === "*") {
                         return true;
                     }
-                    user = await singletonInstance.persistence.getUserLoginStatus(email);
+                    user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
                     if (user.globalUserId === globalUserId) {
                         return true;
                     }
                     return false;
-                case "registerNewPasskey":
                 case "deletePasskey":
                 case "deleteTotp":
                 case "setUserInfo":
                 case "incrementLoginAttempts":
                 case "resetLoginAttempts":
                     console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
-                    user = await singletonInstance.persistence.getUserLoginStatus(email);
-                    if (user.globalUserId === globalUserId) {
+                    user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
+                    if (user && user.globalUserId === globalUserId) {
                         return true;
                     }
                     return false;
+                case "registerNewPasskey":
                 case "verifyAndEnableTotp":
                 case "setTotpSecret":
                 case "getUserValidationEmailCode":
                     if (globalUserId === "*") {
                         return true;
                     }
-                    user = await singletonInstance.persistence.getUserLoginStatus(email)
+                    user = await singletonInstance.persistence.getUserLoginStatus(args[0])
                     if (!user || (user && user.globalUserId === globalUserId)) {
                         return true;
                     }
