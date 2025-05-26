@@ -11,6 +11,9 @@ const USER_CREATION_PATHS_REGEX = [
     /\/verifyTotp$/
 ];
 
+// Assuming getCookies is available in apiUtils
+const { getCookies } = require("../utils/apiUtils");
+
 function isUserCreationPath(url, authApiPrefix) {
     const pathWithoutPrefix = url.startsWith(authApiPrefix) ? url.substring(authApiPrefix.length) : url;
     return USER_CREATION_PATHS_REGEX.some(regex => regex.test(pathWithoutPrefix));
@@ -31,6 +34,10 @@ async function securityMiddleware(req, res, next) {
     const acceptHeader = req.headers['accept'];
     const acceptLanguageHeader = req.headers['accept-language'];
     const authApiPrefix = process.env.AUTH_API_PREFIX || '';
+
+    // Parse cookies from the request
+    const cookies = getCookies(req);
+    const userCreationMarker = cookies['user_creation_marker'];
 
     const ipWhitelistString = process.env.IP_WHITELIST || "";
     const whitelistedIps = ipWhitelistString.split(',').map(ip => ip.trim()).filter(ip => ip);
@@ -61,6 +68,15 @@ async function securityMiddleware(req, res, next) {
     }
 
     if (isUserCreationPath(req.url, authApiPrefix)) {
+        // Check for the user_creation_marker cookie first
+        if (userCreationMarker) {
+            console.warn(`Blocked user creation request from IP ${clientIp} due to existing user_creation_marker cookie for path ${req.url}`);
+            res.writeHead(403, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({
+                error: "User creation is not allowed from this browser as an account has already been created or logged into."
+            }));
+        }
+
         const now = Date.now();
         let ipUserCreationData = ipUserCreationCounts.get(clientIp);
 
