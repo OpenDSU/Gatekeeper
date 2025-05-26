@@ -1,16 +1,13 @@
 /* eslint-disable no-case-declarations */
-const {generateId, generateWalletKey} = require('../utils/pluginUtils');
+const {generateId, generateWalletKey, getLoginStrategy} = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
-const loginChallenges = new Map();
+
 const sessionCache = new Map();
-const crypto = require("crypto");
+
 
 const {AUTH_TYPES, STATUS, ERROR_REASONS} = require('../constants/authConstants');
 
-const EmailUserLoginStrategy = require('./user-login-strategies/EmailUserLoginStrategy');
-const PasskeyUserLoginStrategy = require('./user-login-strategies/PasskeyUserLoginStrategy');
-const TotpUserLoginStrategy = require('./user-login-strategies/TotpUserLoginStrategy');
 
 async function UserLogin() {
     let self = {};
@@ -18,15 +15,6 @@ async function UserLogin() {
     let CreditManager = await $$.loadPlugin("CreditManager");
     const webauthnUtils = require("../authenticator/webauthn");
 
-    const strategies = {
-        [AUTH_TYPES.EMAIL]: new EmailUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges),
-        [AUTH_TYPES.PASSKEY]: new PasskeyUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges),
-        [AUTH_TYPES.TOTP]: new TotpUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges)
-    };
-
-    function getStrategy(authType) {
-        return strategies[authType] || strategies[AUTH_TYPES.EMAIL];
-    }
 
     self.persistence = persistence;
 
@@ -40,11 +28,11 @@ async function UserLogin() {
             }
 
             const defaultAuthType = user.authTypes && user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL;
-            const strategy = getStrategy(defaultAuthType);
+            const strategy = getLoginStrategy(defaultAuthType, persistence);
             const strategyResult = await strategy.handleUserExists(user);
 
             if (user.passkeyCredentials && user.passkeyCredentials.length > 0 && defaultAuthType !== AUTH_TYPES.PASSKEY) {
-                const passkeyStrategy = getStrategy(AUTH_TYPES.PASSKEY);
+                const passkeyStrategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
                 const passkeyResult = await passkeyStrategy.handleUserExists(user);
 
                 if (passkeyResult.publicKeyCredentialRequestOptions) {
@@ -73,7 +61,7 @@ async function UserLogin() {
         name = name || email.split("@")[0];
         let userAsset = await CreditManager.addUser(email, name, referrerId);
         defaultAuthType = defaultAuthType || AUTH_TYPES.EMAIL;
-        const strategy = getStrategy(defaultAuthType);
+        const strategy = getLoginStrategy(defaultAuthType, persistence);
 
         let userPayload = {
             globalUserId: userAsset.id,
@@ -97,29 +85,6 @@ async function UserLogin() {
         return user;
     }
 
-    self.setUpFounderLogin = async function (email, name, founderId) {
-        let walletKey = generateWalletKey();
-        let defaultAuthType = AUTH_TYPES.EMAIL;
-        const strategy = getStrategy(defaultAuthType);
-        let userPayload = {
-            globalUserId: founderId,
-            email: email,
-            walletKey: walletKey,
-            authTypes: [defaultAuthType],
-            passkeyCredentials: [],
-            totpSecret: undefined,
-            totpEnabled: false,
-            totpPendingSetup: false,
-            validationEmailCode: undefined,
-            validationEmailCodeTimestamp: undefined,
-            loginAttempts: 0,
-            lastLoginAttempt: null
-        };
-        await strategy.handleCreateUser(userPayload);
-
-        let user = await persistence.createUserLoginStatus(userPayload);
-        return user;
-    }
     self.registerNewPasskey = async function (email, registrationData) {
         let user = await persistence.getUserLoginStatus(email);
         if (!user) {
@@ -189,7 +154,7 @@ async function UserLogin() {
                     lockTime: user.lastLoginAttempt + expiryTimeout - now
                 };
             } else {
-                await self.resetLoginAttempts(email);
+                await resetLoginAttempts(email);
                 user = await persistence.getUserLoginStatus(email);
             }
         }
@@ -211,14 +176,14 @@ async function UserLogin() {
         }
 
         const authMethodToUse = loginMethod || (user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL);
-        const strategy = getStrategy(authMethodToUse);
+        const strategy = getLoginStrategy(authMethodToUse, persistence);
 
         let verificationResult;
         try {
             verificationResult = await strategy.handleAuthorizeUser(user, loginData, challengeKey);
         } catch (e) {
             console.error(`Error during ${authMethodToUse} authorization strategy:`, e);
-            await self.incrementLoginAttempts(email);
+            await incrementLoginAttempts(email);
             return {status: STATUS.FAILED, reason: `Authorization error: ${e.message}`};
         }
 
@@ -241,7 +206,7 @@ async function UserLogin() {
                 userId: user.globalUserId
             };
         } else {
-            await self.incrementLoginAttempts(email);
+            await incrementLoginAttempts(email);
             return {status: STATUS.FAILED, reason: verificationResult.reason || ERROR_REASONS.INVALID_CREDENTIALS};
         }
     }
@@ -267,7 +232,7 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        const strategy = getStrategy(AUTH_TYPES.EMAIL);
+        const strategy = getLoginStrategy(AUTH_TYPES.EMAIL, persistence);
 
         if (user.loginAttempts >= maxLoginAttempts) {
             if (user.lastLoginAttempt && new Date().getTime() < user.lastLoginAttempt + expiryTimeout) {
@@ -277,7 +242,7 @@ async function UserLogin() {
                     lockTime: user.lastLoginAttempt + expiryTimeout - new Date().getTime()
                 };
             }
-            await self.resetLoginAttempts(email);
+            await resetLoginAttempts(email);
             user = await persistence.getUserLoginStatus(email);
         }
 
@@ -426,7 +391,7 @@ async function UserLogin() {
         return {status: STATUS.SUCCESS};
     }
 
-    self.incrementLoginAttempts = async function (email) {
+    const incrementLoginAttempts = async function (email) {
         try {
             let user = await persistence.getUserLoginStatus(email);
             user.loginAttempts = (user.loginAttempts || 0) + 1;
@@ -437,7 +402,7 @@ async function UserLogin() {
         }
     }
 
-    self.resetLoginAttempts = async function (email) {
+    const resetLoginAttempts = async function (email) {
         try {
             let user = await persistence.getUserLoginStatus(email);
             user.loginAttempts = 0;
@@ -536,13 +501,6 @@ module.exports = {
                 case "logout":
                 case "isSysAdmin":
                     return true;
-                case "setUpFounderLogin":
-                    let CreditManager = await $$.loadPlugin("CreditManager");
-                    let founder = await CreditManager.getUser(globalUserId);
-                    if (founder) {
-                        return true;
-                    }
-                    return false;
                 case "authorizeUser":
                 case "getUserInfo":
                     if (globalUserId === "*") {
@@ -556,8 +514,6 @@ module.exports = {
                 case "deletePasskey":
                 case "deleteTotp":
                 case "setUserInfo":
-                case "incrementLoginAttempts":
-                case "resetLoginAttempts":
                     console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
                     user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
                     if (user && user.globalUserId === globalUserId) {

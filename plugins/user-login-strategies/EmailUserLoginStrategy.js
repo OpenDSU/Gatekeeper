@@ -1,11 +1,26 @@
 const UserLoginStrategyInterface = require('./UserLoginStrategyInterface');
-const { generateValidationCode } = require('../../utils/pluginUtils');
+
 const expiryTimeout = 5 * 60 * 1000;
-const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../../constants/authConstants');
+const {AUTH_TYPES, STATUS, ERROR_REASONS} = require('../../constants/authConstants');
+const crypto = require("crypto");
 
 class EmailUserLoginStrategy extends UserLoginStrategyInterface {
     constructor(persistence, webauthnUtils, crypto, loginChallenges) {
         super(persistence, webauthnUtils, crypto, loginChallenges);
+    }
+
+    generateValidationCode(length) {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        const bytes = crypto.randomBytes(length)
+        let code = '';
+
+        for (let i = 0; i < length; i++) {
+            // Map each random byte to a character in the `chars` string
+            const randomIndex = bytes[i] % chars.length;
+            code += chars[randomIndex];
+        }
+
+        return code;
     }
 
     async handleUserExists(user) {
@@ -26,7 +41,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
             userPayload.authTypes.push(AUTH_TYPES.EMAIL);
         }
 
-        userPayload.validationEmailCode = generateValidationCode(5);
+        userPayload.validationEmailCode = this.generateValidationCode(5);
         userPayload.validationEmailCodeTimestamp = new Date().toISOString();
     }
 
@@ -40,7 +55,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
 
         if (user.validationEmailCode === code) {
             if (!user.validationEmailCodeTimestamp || now - new Date(user.validationEmailCodeTimestamp).getTime() > expiryTimeout) {
-                return { verified: false, reason: ERROR_REASONS.CODE_EXPIRED };
+                return {verified: false, reason: ERROR_REASONS.CODE_EXPIRED};
             }
             return {
                 verified: true,
@@ -50,7 +65,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
                 }
             };
         } else {
-            return { verified: false, reason: ERROR_REASONS.INVALID_CODE };
+            return {verified: false, reason: ERROR_REASONS.INVALID_CODE};
         }
     }
 
@@ -59,7 +74,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        user.validationEmailCode = generateValidationCode(5);
+        user.validationEmailCode = this.generateValidationCode(5);
         user.validationEmailCodeTimestamp = new Date().toISOString();
         await this.persistence.updateUserLoginStatus(user.id, user);
         return {

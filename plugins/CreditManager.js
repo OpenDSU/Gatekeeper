@@ -1,4 +1,6 @@
 const process = require("process");
+const {generateWalletKey, getLoginStrategy} = require("../utils/pluginUtils");
+const {AUTH_TYPES} = require("../constants/authConstants");
 
 async function CreditManager() {
     let self = {};
@@ -39,24 +41,48 @@ async function CreditManager() {
         console.log("Tick...");
     }
     self.persistence = persistence;
+    const setUpFounderLogin = async function (email, name, founderId) {
+        let walletKey = generateWalletKey();
+        let defaultAuthType = AUTH_TYPES.EMAIL;
+        const strategy = getLoginStrategy(defaultAuthType, persistence);
+        let userPayload = {
+            globalUserId: founderId,
+            email: email,
+            walletKey: walletKey,
+            authTypes: [defaultAuthType],
+            passkeyCredentials: [],
+            totpSecret: undefined,
+            totpEnabled: false,
+            totpPendingSetup: false,
+            validationEmailCode: undefined,
+            validationEmailCodeTimestamp: undefined,
+            loginAttempts: 0,
+            lastLoginAttempt: null
+        };
+        await strategy.handleCreateUser(userPayload);
+
+        let user = await persistence.createUserLoginStatus(userPayload);
+        return user;
+    }
+
     //keep 10% (default) of the minted amount for the founder reward
-    self.mint = async function (amount, founderRewardPercentage = 10) {
+    const mint = async function (amount, founderRewardPercentage = 10) {
         await persistence.mintPoints(amount);
         let founder = await persistence.createUser({
             email: process.env.SYSADMIN_EMAIL,
-            name: "sysadmin",
+            name: "founder",
             invitingUserID: "",
             level: 3,
             lockedAmountUntilValidation: 0,
             lockedAmountForInvitingUser: 0
         });
+        await setUpFounderLogin(founder.email, founder.name, founder.id);
         await persistence.rewardFounder(founder.id, amount / founderRewardPercentage, "Founder reward");
-        return founder;
     }
 
-    /* self.claimFounder = async function (userID, amount) {
-         await persistence.rewardFounder(userID, amount, "Founder reward");
-     }*/
+    if (!await persistence.hasUserLoginStatus(process.env.SYSADMIN_EMAIL)) {
+        await mint(process.env.SYSTEM_MINT_AMOUNT, process.env.FOUNDER_PERCENTAGE);
+    }
 
     self.addUser = async function (email, name, referrerId) {
         let user = await persistence.createUser({
@@ -164,14 +190,9 @@ module.exports = {
                         return true;
                     }
                     return false;
-                case "mint":
-                    if (globalUserId === "*") {
-                        return true;
-                    }
-                    return false;
                 case "addUser":
                 case "getSystemAvailablePoints":
-                    return true
+                    return false;
                 default:
                     return false;
             }

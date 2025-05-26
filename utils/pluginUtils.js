@@ -1,17 +1,12 @@
 const crypto = require("crypto");
-function generateValidationCode(length) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    const bytes = crypto.randomBytes(length)
-    let code = '';
+const {AUTH_TYPES} = require("../constants/authConstants");
+const webauthnUtils = require("../authenticator/webauthn");
+const EmailUserLoginStrategy = require("../plugins/user-login-strategies/EmailUserLoginStrategy");
+const PasskeyUserLoginStrategy = require("../plugins/user-login-strategies/PasskeyUserLoginStrategy");
+const TotpUserLoginStrategy = require("../plugins/user-login-strategies/TotpUserLoginStrategy");
 
-    for (let i = 0; i < length; i++) {
-        // Map each random byte to a character in the `chars` string
-        const randomIndex = bytes[i] % chars.length;
-        code += chars[randomIndex];
-    }
 
-    return code;
-}
+
 function generateId(length = 16) {
     let randomStringId = "";
     while (randomStringId.length < length) {
@@ -19,13 +14,31 @@ function generateId(length = 16) {
     }
     return randomStringId;
 }
-function generateWalletKey(){
+
+function generateWalletKey() {
     return crypto.createHash('sha256')
         .update(crypto.randomBytes(32))
         .digest('hex');
 }
+
+const loginChallenges = new Map();
+
+function getLoginStrategy(authType = AUTH_TYPES.EMAIL, persistence) {
+    switch (authType) {
+        case AUTH_TYPES.EMAIL:
+            return new EmailUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges);
+            break;
+        case AUTH_TYPES.PASSKEY:
+            return new PasskeyUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges)
+            break;
+        case AUTH_TYPES.TOTP:
+            return new TotpUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges)
+            break;
+    }
+}
+
 module.exports = {
-    generateValidationCode,
     generateId,
-    generateWalletKey
+    generateWalletKey,
+    getLoginStrategy
 };
