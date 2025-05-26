@@ -1,28 +1,26 @@
-const ipRequestCounts = new Map();
-const MAX_REQUESTS_PER_WINDOW = 15; // Max requests allowed
-const WINDOW_SIZE_IN_SECONDS = 60; // Window size in seconds
-const CLEANUP_INTERVAL = WINDOW_SIZE_IN_SECONDS * 1000; // Cleanup interval in milliseconds
+const ipUserCreationCounts = new Map();
+const CLEANUP_INTERVAL = 60 * 1000;
 
-const SENSITIVE_PATHS_REGEX = [
-    /\/generateAuthCode$/, // POST
-    /\/walletLogin$/, // POST
-    /\/userExists\/[^/]+$/, // GET
-    /\/registerNewPasskey$/, // POST
-    /\/registerTotp$/, // POST
-    /\/verifyTotp$/ // POST
+const MAX_USER_CREATION_REQUESTS_PER_HOUR = 1;
+const USER_CREATION_WINDOW_IN_SECONDS = 3600;
+
+const USER_CREATION_PATHS_REGEX = [
+    /\/generateAuthCode$/,
+    /\/registerNewPasskey$/,
+    /\/registerTotp$/,
+    /\/verifyTotp$/
 ];
 
-function isSensitivePath(url, authApiPrefix) {
+function isUserCreationPath(url, authApiPrefix) {
     const pathWithoutPrefix = url.startsWith(authApiPrefix) ? url.substring(authApiPrefix.length) : url;
-    return SENSITIVE_PATHS_REGEX.some(regex => regex.test(pathWithoutPrefix));
+    return USER_CREATION_PATHS_REGEX.some(regex => regex.test(pathWithoutPrefix));
 }
 
-// Cleanup old IP entries periodically
 setInterval(() => {
     const now = Date.now();
-    for (const [ip, data] of ipRequestCounts.entries()) {
-        if (now - data.timestamp > WINDOW_SIZE_IN_SECONDS * 1000) {
-            ipRequestCounts.delete(ip);
+    for (const [ip, data] of ipUserCreationCounts.entries()) {
+        if (now - data.timestamp > USER_CREATION_WINDOW_IN_SECONDS * 1000) {
+            ipUserCreationCounts.delete(ip);
         }
     }
 }, CLEANUP_INTERVAL);
@@ -34,7 +32,13 @@ async function securityMiddleware(req, res, next) {
     const acceptLanguageHeader = req.headers['accept-language'];
     const authApiPrefix = process.env.AUTH_API_PREFIX || '';
 
-    // 1. Enhanced User-Agent and common browser header checks
+    const ipWhitelistString = process.env.IP_WHITELIST || "";
+    const whitelistedIps = ipWhitelistString.split(',').map(ip => ip.trim()).filter(ip => ip);
+    if (whitelistedIps.includes(clientIp)) {
+        console.log(`Request from whitelisted IP ${clientIp} bypassing security checks for path ${req.url}`);
+        return next();
+    }
+
     if (!userAgent) {
         console.warn(`Blocked request from IP ${clientIp} due to missing User-Agent for path ${req.url}`);
         res.writeHead(403, { 'Content-Type': 'application/json' });
@@ -56,22 +60,27 @@ async function securityMiddleware(req, res, next) {
         return res.end(JSON.stringify({ error: "Access denied. Requests must originate from a recognized web browser User-Agent." }));
     }
 
-    // 2. Rate limiting for specifically SENSITIVE paths
-    if (isSensitivePath(req.url, authApiPrefix)) {
+    if (isUserCreationPath(req.url, authApiPrefix)) {
         const now = Date.now();
-        let ipData = ipRequestCounts.get(clientIp);
+        let ipUserCreationData = ipUserCreationCounts.get(clientIp);
 
-        if (!ipData || (now - ipData.timestamp > WINDOW_SIZE_IN_SECONDS * 1000)) {
-            ipData = { count: 1, timestamp: now };
-            ipRequestCounts.set(clientIp, ipData);
+        if (!ipUserCreationData || (now - ipUserCreationData.timestamp > USER_CREATION_WINDOW_IN_SECONDS * 1000)) {
+            // If no record or window expired, allow and record this request
+            ipUserCreationData = { count: 1, timestamp: now };
+            ipUserCreationCounts.set(clientIp, ipUserCreationData);
         } else {
-            ipData.count++;
-        }
-
-        if (ipData.count > MAX_REQUESTS_PER_WINDOW) {
-            console.warn(`Blocked request from IP ${clientIp} due to rate limiting for path ${req.url}. Count: ${ipData.count}`);
-            res.writeHead(429, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: "Too many requests. Please try again later." }));
+            // Check if limit exceeded
+            if (ipUserCreationData.count >= MAX_USER_CREATION_REQUESTS_PER_HOUR) {
+                const timeRemaining = Math.ceil((ipUserCreationData.timestamp + USER_CREATION_WINDOW_IN_SECONDS * 1000 - now) / 1000 / 60); // minutes
+                console.warn(`Blocked user creation request from IP ${clientIp} due to hourly rate limiting for path ${req.url}. Count: ${ipUserCreationData.count}, Time remaining: ${timeRemaining} minutes`);
+                res.writeHead(429, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({
+                    error: "Too many user creation requests. You can only create one user account per hour from this IP address.",
+                    timeRemainingMinutes: timeRemaining
+                }));
+            }
+            // If within limit, increment count
+            ipUserCreationData.count++;
         }
     }
 
