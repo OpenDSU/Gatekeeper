@@ -1,4 +1,3 @@
-/* eslint-disable no-case-declarations */
 const {generateId, generateWalletKey, getLoginStrategy} = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
@@ -13,8 +12,6 @@ async function UserLogin() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
     let CreditManager = await $$.loadPlugin("CreditManager");
-    const webauthnUtils = require("../authenticator/webauthn");
-
 
     self.persistence = persistence;
 
@@ -91,7 +88,7 @@ async function UserLogin() {
             throw new Error(ERROR_REASONS.USER_NOT_EXISTS);
         }
 
-        const strategy = strategies[AUTH_TYPES.PASSKEY];
+        const strategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
         if (!strategy || typeof strategy.handleRegisterNewPasskey !== 'function') {
             throw new Error("Passkey strategy not available or invalid.");
         }
@@ -342,7 +339,7 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        const strategy = strategies[AUTH_TYPES.PASSKEY];
+        const strategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
         if (!strategy || typeof strategy.handleDeletePasskey !== 'function') {
             throw new Error("Passkey strategy not available or invalid.");
         }
@@ -367,7 +364,7 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        const strategy = strategies[AUTH_TYPES.TOTP];
+        const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
         if (!strategy || typeof strategy.handleDeleteTotp !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
@@ -429,7 +426,7 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        const strategy = strategies[AUTH_TYPES.TOTP];
+        const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
         if (!strategy || typeof strategy.handleSetTotpSecret !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
@@ -457,7 +454,7 @@ async function UserLogin() {
             user.authTypes.push(AUTH_TYPES.EMAIL);
         }
 
-        const strategy = strategies[AUTH_TYPES.TOTP];
+        const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
         if (!strategy || typeof strategy.handleVerifyAndEnableTotp !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
