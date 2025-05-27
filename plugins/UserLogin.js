@@ -78,6 +78,8 @@ async function UserLogin() {
         await strategy.handleCreateUser(userPayload, registrationData);
 
         let user = await persistence.createUserLoginStatus(userPayload);
+        let sessionId = await createSessionForUser(user);
+        user.sessionId = sessionId;
         user.status = STATUS.SUCCESS;
         return user;
     }
@@ -498,7 +500,6 @@ module.exports = {
                 case "logout":
                 case "isSysAdmin":
                     return true;
-                case "authorizeUser":
                 case "getUserInfo":
                     if (globalUserId === "*") {
                         return true;
@@ -508,24 +509,18 @@ module.exports = {
                         return true;
                     }
                     return false;
+
                 case "deletePasskey":
                 case "deleteTotp":
                 case "setUserInfo":
-                    console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
-                    user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
-                    if (user && user.globalUserId === globalUserId) {
-                        return true;
-                    }
-                    return false;
+                case "authorizeUser":
                 case "registerNewPasskey":
                 case "verifyAndEnableTotp":
                 case "setTotpSecret":
                 case "getUserValidationEmailCode":
-                    if (globalUserId === "*") {
-                        return true;
-                    }
-                    user = await singletonInstance.persistence.getUserLoginStatus(args[0])
-                    if (!user || (user && user.globalUserId === globalUserId)) {
+                    console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
+                    user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
+                    if (user && user.globalUserId === globalUserId) {
                         return true;
                     }
                     return false;

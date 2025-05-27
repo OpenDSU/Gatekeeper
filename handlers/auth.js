@@ -8,10 +8,11 @@ const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 const authStrategyFactory = require('../strategies/AuthStrategyFactory');
+const authStrategyFactoryWithSession = require('../strategies/AuthStrategyFactory');
 const {AUTH_TYPES, STATUS} = require('../constants/authConstants');
 
 async function initAPIClient(req, pluginName) {
-    const userId = req.userId || '*';
+    const userId = req.userId;
     const sessionId = req.sessionId || undefined;
     return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
         userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", {sessionId: sessionId, email: req.email}
@@ -29,6 +30,7 @@ async function initAPIClientAdmin(req, pluginName) {
 }
 
 let factoryInitialized = false;
+let factoryWithSessionInitialized = false;
 
 async function ensureFactoryInitialized(req) {
     if (!factoryInitialized) {
@@ -38,6 +40,16 @@ async function ensureFactoryInitialized(req) {
         factoryInitialized = true;
     }
 }
+
+async function initStrategyFactory(req) {
+
+    const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
+    const emailClient = await initAPIClient(req, constants.EMAIL_PLUGIN);
+    authStrategyFactoryWithSession.init(userLoginClient, emailClient);
+    return authStrategyFactoryWithSession;
+
+}
+
 
 const userExists = async function (req, res) {
     let response;
@@ -215,11 +227,11 @@ const registerNewPasskey = async (req, res) => {
         return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
     }
 
-    await ensureFactoryInitialized(req);
+    await initStrategyFactory(req);
 
     let email = decodeURIComponent(req.email);
     try {
-        const passkeyStrategy = authStrategyFactory.getStrategy(AUTH_TYPES.PASSKEY);
+        const passkeyStrategy = authStrategyFactoryWithSession.getStrategy(AUTH_TYPES.PASSKEY);
 
         let result = await passkeyStrategy.registerNewPasskey(email, registrationData);
 
@@ -329,11 +341,11 @@ const registerTotp = async (req, res) => {
     }
 
     try {
-        await ensureFactoryInitialized(req);
+        await initStrategyFactory(req);
 
         const email = decodeURIComponent(req.email);
 
-        const totpStrategy = authStrategyFactory.getStrategy("totp");
+        const totpStrategy = authStrategyFactoryWithSession.getStrategy("totp");
 
         const result = await totpStrategy.setupTotp(email);
 
