@@ -70,16 +70,46 @@ class EmailAuthStrategy extends BaseAuthStrategy {
     }
 
     async createUser(userData) {
-        const { email, name, referrerId } = userData;
-        const result = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.EMAIL, null);
+        const { email, name, referrerId, origin } = userData;
+        const creationResult = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.EMAIL, null);
 
-        if (result.status === STATUS.SUCCESS) {
-            return {
+        if (creationResult.status === STATUS.SUCCESS) {
+            if (this.emailPlugin && creationResult.validationEmailCode) {
+                try {
+                    let subject = "Your account validation code";
+                    let text = `Your validation code is: ${creationResult.validationEmailCode}`;
+                    let html = `Your validation code is: <strong>${creationResult.validationEmailCode}</strong>`;
+                    await this.emailPlugin.sendEmail(
+                        creationResult.globalUserId,
+                        creationResult.email,
+                        process.env.SENDGRID_SENDER_EMAIL,
+                        subject,
+                        text,
+                        html
+                    );
+                    logger.info(`Sent validation code email to ${creationResult.email} after registration.`);
+                } catch (err) {
+                    logger.error(`Failed to send validation email to ${creationResult.email} after registration: ${err.message}`);
+                }
+            }
+
+            let responseMessage = {
                 success: true,
-                walletKey: result.walletKey
+                userId: creationResult.globalUserId,
+                email: creationResult.email,
+                walletKey: creationResult.walletKey,
+                sessionId: creationResult.sessionId
             };
+
+            if (process.env.NODE_ENV === 'development' || origin === "http://localhost:8080") {
+                if (creationResult.validationEmailCode) {
+                    responseMessage.code = creationResult.validationEmailCode;
+                }
+            }
+
+            return responseMessage;
         } else {
-            throw new Error(result.reason || "Failed to create user");
+            throw new Error(creationResult.reason || "Failed to create user");
         }
     }
 }

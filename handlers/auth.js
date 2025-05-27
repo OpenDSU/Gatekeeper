@@ -1,4 +1,3 @@
-// Gatekeeper/handlers/auth.js
 const logger = $$.getLogger("apis", "auth");
 const process = require("process");
 const openDSU = require('opendsu');
@@ -9,13 +8,13 @@ const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 const authStrategyFactory = require('../strategies/AuthStrategyFactory');
 const authStrategyFactoryWithSession = require('../strategies/AuthStrategyFactory');
-const {AUTH_TYPES, STATUS} = require('../constants/authConstants');
+const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
 
 async function initAPIClient(req, pluginName) {
     const userId = req.userId;
     const sessionId = req.sessionId || undefined;
     return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
-        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", {sessionId: sessionId, email: req.email}
+        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { sessionId: sessionId, email: req.email }
     );
 }
 
@@ -23,9 +22,9 @@ async function initAPIClientAdmin(req, pluginName) {
     const userId = req.userId || '*';
     return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
         userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", {
-            authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY,
-            email: req.email
-        }
+        authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY,
+        email: req.email
+    }
     );
 }
 
@@ -47,7 +46,7 @@ async function initStrategyFactory(req) {
 const userExists = async function (req, res) {
     let response;
     try {
-        let {email} = req.params;
+        let { email } = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
 
@@ -80,12 +79,12 @@ const userExists = async function (req, res) {
             }
         }
 
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(responseData));
     } catch (err) {
         logger.error(`Error in userExists for ${req.params.email}: ${err.message}`, err.stack);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({error: err.message}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
     }
 }
 
@@ -99,12 +98,12 @@ const generateAuthCode = async function (req, res) {
             throw new Error("Missing registrationData for passkey signup.");
         }
     } catch (e) {
-        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         logger.debug(`Invalid data for generateAuthCode: ${e.message}`);
-        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
+        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
     }
 
-    const {email, authType} = parsedData;
+    const { email, authType } = parsedData;
     req.email = email;
     const factory = await initAdminFactory(req);
 
@@ -125,13 +124,13 @@ const generateAuthCode = async function (req, res) {
 
         // set sessionId in cookies
         res.setHeader('Set-Cookie', utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId));
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(result));
 
     } catch (e) {
         logger.error(`Error during generateAuthCode for ${parsedData.email}: ${e.message}`, e.stack);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 }
 
@@ -168,15 +167,15 @@ const walletLogin = async (req, res) => {
         }
 
     } catch (e) {
-        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         logger.debug(`Invalid login data: ${e.message}`);
-        return res.end(JSON.stringify({error: `Invalid login data: ${e.message}`}));
+        return res.end(JSON.stringify({ error: `Invalid login data: ${e.message}` }));
     }
 
     const factory = await initStrategyFactory(req);
 
     try {
-        const {email, loginMethod} = parsedData;
+        const { email, loginMethod } = parsedData;
 
         const strategy = await factory.getStrategyForUser(email, loginMethod);
 
@@ -185,29 +184,29 @@ const walletLogin = async (req, res) => {
         if (result.success) {
             let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
             res.setHeader('Set-Cookie', cookies);
-            res.writeHead(200, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify({operation: "success"}));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ operation: "success" }));
             logger.info(`User ${email} logged in successfully (${loginMethod}).`);
         } else {
             const statusCode = (result.error === "exceeded number of attempts") ? 403 : 401;
-            res.writeHead(statusCode, {'Content-Type': 'application/json'});
+            res.writeHead(statusCode, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 error: result.error,
-                details: {lockTime: result.lockTime}
+                details: { lockTime: result.lockTime }
             }));
             logger.warn(`User ${email} login failed (${loginMethod}): ${result.error}`);
         }
     } catch (e) {
         logger.error(`Error during walletLogin for ${parsedData.email}: ${e.message}`, e.stack);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 }
 
 const registerNewPasskey = async (req, res) => {
     if (!req.userId || !req.email) {
-        res.writeHead(401, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({error: "Authentication required."}));
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: "Authentication required." }));
     }
 
     let registrationData;
@@ -218,9 +217,9 @@ const registerNewPasskey = async (req, res) => {
             throw new Error("Invalid passkey registration data structure.");
         }
     } catch (e) {
-        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         logger.debug(`Invalid data for registerNewPasskey: ${e.message}`);
-        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
+        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
     }
 
     const factory = await initStrategyFactory(req);
@@ -232,27 +231,27 @@ const registerNewPasskey = async (req, res) => {
         let result = await passkeyStrategy.registerNewPasskey(email, registrationData);
 
         if (result.success) {
-            res.writeHead(200, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify({operation: "success", credentialId: result.credentialId}));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ operation: "success", credentialId: result.credentialId }));
             logger.info(`Successfully registered new passkey for user ${email}`);
         } else {
-            res.writeHead(400, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify({error: result.error || "Failed to register new passkey."}));
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: result.error || "Failed to register new passkey." }));
             logger.warn(`Failed to register new passkey for user ${email}: ${result.error}`);
         }
     } catch (e) {
         logger.error(`Error during registerNewPasskey for ${email}: ${e.message}`, e.stack);
         const statusCode = e.message.includes("already registered") ? 409 : 500;
-        res.writeHead(statusCode, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
+        res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 }
 
 
 const walletLogout = async (req, res) => {
     if (!req.sessionId) {
-        res.writeHead(400, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({error: "Session information missing."}));
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: "Session information missing." }));
     }
 
     try {
@@ -265,8 +264,8 @@ const walletLogout = async (req, res) => {
             clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
         }
         res.setHeader('Set-Cookie', clearedCookies);
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({operation: "success"}));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ operation: "success" }));
         logger.info(`User ${req.email || req.userId || 'Unknown'} logged out.`);
     } catch (e) {
         logger.error(`Error during walletLogout: ${e.message}`, e.stack);
@@ -276,14 +275,14 @@ const walletLogout = async (req, res) => {
             clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
         }
         res.setHeader('Set-Cookie', clearedCookies);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Logout operation failed: ${e.message}`}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Logout operation failed: ${e.message}` }));
     }
 }
 
 const getUserInfo = async (req, res) => {
     try {
-        let {email} = req.query;
+        let { email } = req.query;
         if (!email) {
             email = req.email;
         }
@@ -291,18 +290,18 @@ const getUserInfo = async (req, res) => {
         utils.validateEmail(email);
         let client = await initAPIClient(req, constants.USER_PLUGIN);
         let result = await client.getUserInfo(email);
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(result.userInfo));
     } catch (e) {
         logger.debug(e.message);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: e.message}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
     }
 }
 
 const setUserInfo = async (req, res) => {
     try {
-        let {email} = req.query;
+        let { email } = req.query;
         if (!email) {
             email = req.email;
         }
@@ -311,9 +310,9 @@ const setUserInfo = async (req, res) => {
         try {
             data = JSON.parse(req.body);
         } catch (e) {
-            res.writeHead(415, {'Content-Type': 'application/json'});
+            res.writeHead(415, { 'Content-Type': 'application/json' });
             logger.debug(e.message);
-            res.end(JSON.stringify({error: "Wrong data"}));
+            res.end(JSON.stringify({ error: "Wrong data" }));
             return;
         }
 
@@ -321,19 +320,19 @@ const setUserInfo = async (req, res) => {
         utils.validateEmail(email);
         let client = await initAPIClient(req, constants.USER_PLUGIN);
         await client.setUserInfo(email, data);
-        res.writeHead(200, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({operation: "success"}));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ operation: "success" }));
     } catch (e) {
         logger.debug(e.message);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: e.message}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
     }
 }
 
 const registerTotp = async (req, res) => {
     if (!req.userId || !req.email) {
-        res.writeHead(401, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({error: "Authentication required."}));
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: "Authentication required." }));
     }
 
     try {
@@ -346,7 +345,7 @@ const registerTotp = async (req, res) => {
         const result = await totpStrategy.setupTotp(email);
 
         if (result.status) {
-            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.writeHead(200, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 status: STATUS.SUCCESS,
                 uri: result.uri,
@@ -354,7 +353,7 @@ const registerTotp = async (req, res) => {
             }));
             logger.info(`TOTP setup initiated for user ${email}`);
         } else {
-            res.writeHead(400, {'Content-Type': 'application/json'});
+            res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 status: STATUS.FAILED,
                 error: result.error || "Failed to set up TOTP"
@@ -362,8 +361,8 @@ const registerTotp = async (req, res) => {
         }
     } catch (e) {
         logger.error(`Error during TOTP registration for ${req.email}: ${e.message}`, e.stack);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 };
 
@@ -372,26 +371,26 @@ const verifyTotp = async (req, res) => {
     try {
         verifyData = JSON.parse(req.body);
 
-        const {token, email, enableTotp} = verifyData;
+        const { token, email, enableTotp } = verifyData;
 
         if (!token || !/^[0-9]{6}$/.test(token)) {
-            res.writeHead(400, {'Content-Type': 'application/json'});
-            return res.end(JSON.stringify({error: "Please enter a valid 6-digit code."}));
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Please enter a valid 6-digit code." }));
         }
 
         let userEmail = email;
 
         if (!userEmail && enableTotp === true) {
             if (!req.email) {
-                res.writeHead(401, {'Content-Type': 'application/json'});
-                return res.end(JSON.stringify({error: "Authentication required."}));
+                res.writeHead(401, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: "Authentication required." }));
             }
             userEmail = decodeURIComponent(req.email);
         }
 
         if (!userEmail) {
-            res.writeHead(400, {'Content-Type': 'application/json'});
-            return res.end(JSON.stringify({error: "Email is required."}));
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Email is required." }));
         }
 
         const factory = await initStrategyFactory(req);
@@ -402,14 +401,14 @@ const verifyTotp = async (req, res) => {
             const result = await totpStrategy.verifyAndEnableTotp(userEmail, token);
 
             if (result.success) {
-                res.writeHead(200, {'Content-Type': 'application/json'});
+                res.writeHead(200, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     status: STATUS.SUCCESS,
                     message: "TOTP enabled successfully"
                 }));
                 logger.info(`TOTP enabled for user ${userEmail}`);
             } else {
-                res.writeHead(400, {'Content-Type': 'application/json'});
+                res.writeHead(400, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     status: STATUS.FAILED,
                     error: result.error || "Invalid verification code"
@@ -429,23 +428,23 @@ const verifyTotp = async (req, res) => {
                     loginResult.sessionId
                 );
                 res.setHeader('Set-Cookie', cookies);
-                res.writeHead(200, {'Content-Type': 'application/json'});
-                res.end(JSON.stringify({operation: "success"}));
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ operation: "success" }));
                 logger.info(`User ${userEmail} logged in successfully using TOTP.`);
             } else {
                 const statusCode = (loginResult.error === "exceeded number of attempts") ? 403 : 401;
-                res.writeHead(statusCode, {'Content-Type': 'application/json'});
+                res.writeHead(statusCode, { 'Content-Type': 'application/json' });
                 res.end(JSON.stringify({
                     error: loginResult.error,
-                    details: {lockTime: loginResult.lockTime}
+                    details: { lockTime: loginResult.lockTime }
                 }));
                 logger.warn(`User ${userEmail} TOTP login failed: ${loginResult.error}`);
             }
         }
     } catch (e) {
         logger.error(`Error during TOTP verification: ${e.message}`, e.stack);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 };
 
@@ -517,7 +516,7 @@ const getAuthTypes = async function (req, res) {
             }
         }
 
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             userExists: true,
@@ -528,7 +527,7 @@ const getAuthTypes = async function (req, res) {
         logger.error(`Error in getAuthTypes for ${req.params?.email || 'unknown'}: ${err.message}`, err.stack);
 
         if (err.message && err.message.includes("user not exists")) {
-            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.writeHead(200, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({
                 status: STATUS.SUCCESS,
                 userExists: false,
@@ -536,8 +535,8 @@ const getAuthTypes = async function (req, res) {
             }));
         }
 
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        return res.end(JSON.stringify({error: err.message}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
     }
 }
 
@@ -576,7 +575,7 @@ const deletePasskey = async function (req, res) {
             }));
         }
 
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             message: result.message || "Passkey successfully deleted"
@@ -618,7 +617,7 @@ const deleteTotp = async function (req, res) {
             }));
         }
 
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             message: result.message || "TOTP authentication successfully deleted"
@@ -644,9 +643,9 @@ const sendCodeByEmail = async function (req, res) {
         email = parsedData.email;
         utils.validateEmail(email);
     } catch (e) {
-        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         logger.debug(`Invalid data for sendCodeByEmail: ${e.message}`);
-        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
+        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
     }
 
     req.email = email;
@@ -661,13 +660,13 @@ const sendCodeByEmail = async function (req, res) {
             origin: req.headers.origin
         });
 
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify(result));
 
     } catch (e) {
         logger.error(`Error during sendCodeByEmail for ${email}: ${e.message}`, e.stack);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 };
 
@@ -684,9 +683,9 @@ const loginWithEmailCode = async function (req, res) {
         }
         parsedData.code = parsedData.code.trim();
     } catch (e) {
-        res.writeHead(400, {'Content-Type': 'application/json'});
+        res.writeHead(400, { 'Content-Type': 'application/json' });
         logger.debug(`Invalid data for loginWithEmailCode: ${e.message}`);
-        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
+        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
     }
 
     req.email = email;
@@ -702,25 +701,73 @@ const loginWithEmailCode = async function (req, res) {
         if (result.success) {
             let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
             res.setHeader('Set-Cookie', cookies);
-            res.writeHead(200, {'Content-Type': 'application/json'});
-            res.end(JSON.stringify({operation: "success"}));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ operation: "success" }));
             logger.info(`User ${email} logged in successfully (Email Code).`);
         } else {
             const statusCode = (result.error === "exceeded number of attempts") ? 403 : 401;
-            res.writeHead(statusCode, {'Content-Type': 'application/json'});
+            res.writeHead(statusCode, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 error: result.error,
-                details: {lockTime: result.lockTime}
+                details: { lockTime: result.lockTime }
             }));
             logger.warn(`User ${email} email code login failed: ${result.error}`);
         }
 
     } catch (e) {
         logger.error(`Error during loginWithEmailCode for ${email}: ${e.message}`, e.stack);
-        res.writeHead(500, {'Content-Type': 'application/json'});
-        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 };
+
+const register = async (req, res) => {
+    let email;
+    let authData = req.body;
+    let parsedData;
+    try {
+        parsedData = JSON.parse(authData);
+        email = parsedData.email;
+        utils.validateEmail(email);
+    } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        logger.debug(`Invalid data for register: ${e.message}`);
+        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+    }
+
+    req.email = email;
+    const factory = await initAdminFactory(req);
+
+    try {
+        const strategy = factory.getStrategy(AUTH_TYPES.EMAIL);
+        const result = await strategy.createUser({
+            email: email,
+            name: parsedData?.name,
+            referrerId: parsedData?.referrerId,
+            origin: req.headers.origin
+        });
+
+        if (result.success) {
+            const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
+            await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
+            logger.info(`DSU created for new EMAIL user ${email}`);
+
+            // set sessionId in cookies
+            res.setHeader('Set-Cookie', utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId));
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ operation: "success" }));
+            logger.info(`User ${email} registered successfully.`);
+        } else {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: result.error || "Registration failed" }));
+            logger.warn(`User ${email} registration failed: ${result.error}`);
+        }
+    } catch (e) {
+        logger.error(`Error during register for ${email}: ${e.message}`, e.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+    }
+}
 
 module.exports = {
     generateAuthCode,
@@ -736,5 +783,6 @@ module.exports = {
     deletePasskey,
     deleteTotp,
     sendCodeByEmail,
-    loginWithEmailCode
+    loginWithEmailCode,
+    register
 }

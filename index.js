@@ -42,6 +42,8 @@ module.exports = async function (server) {
 
     server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
+    server.post(`${AUTH_API_PREFIX}/register`, auth.register);
+
     server.post(`${AUTH_API_PREFIX}/sendCodeByEmail`, auth.sendCodeByEmail);
 
     server.post(`${AUTH_API_PREFIX}/loginWithEmailCode`, auth.loginWithEmailCode);

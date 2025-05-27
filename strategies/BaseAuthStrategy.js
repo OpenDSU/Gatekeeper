@@ -1,3 +1,4 @@
+const { AUTH_TYPES } = require('../constants/authConstants');
 /**
  * Base Authentication Strategy
  * 
