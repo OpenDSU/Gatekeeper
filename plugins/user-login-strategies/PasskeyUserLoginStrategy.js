@@ -61,13 +61,18 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             return {
                 authTypes: user.authTypes,
                 activeAuthType: AUTH_TYPES.PASSKEY,
-                publicKeyCredentialRequestOptions: JSON.stringify(publicKeyCredentialRequestOptions),
-                challengeKey: challengeKey
+                authMetadata: {
+                    publicKeyCredentialRequestOptions: JSON.stringify(publicKeyCredentialRequestOptions),
+                    challengeKey: challengeKey
+                }
             };
         } else {
+            // No passkeys registered for this user, so Passkey strategy cannot be active here for login.
+            // It might still be an authType if user *could* register one.
             return {
                 authTypes: user.authTypes,
-                activeAuthType: user.authTypes[0]
+                activeAuthType: user.authTypes.includes(AUTH_TYPES.EMAIL) ? AUTH_TYPES.EMAIL : user.authTypes[0],
+                authMetadata: {}
             };
         }
     }

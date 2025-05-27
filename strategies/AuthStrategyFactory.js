@@ -45,21 +45,25 @@ class AuthStrategyFactory {
      * @returns {Promise<Object>} The appropriate strategy
      */
     async getStrategyForUser(email, loginMethod) {
-        const userInfo = await this.strategies[AUTH_TYPES.EMAIL].checkUserExists(email);
+        // directly use userLoginPlugin to get comprehensive user info first
+        // This avoids depending on a specific strategy (like email) to fetch initial user state.
+        const userLoginExistsResponse = await this.userLoginPlugin.userExists(email);
 
-        if (loginMethod &&
-            userInfo.authTypes &&
-            userInfo.authTypes.includes(loginMethod)) {
-            return this.getStrategy(loginMethod);
-        }
-
-        if (loginMethod === AUTH_TYPES.EMAIL) {
+        if (!userLoginExistsResponse.userExists) {
+            // If user doesn't exist, default to email strategy for signup/initial interaction
             return this.getStrategy(AUTH_TYPES.EMAIL);
         }
 
-        const authTypeToUse = userInfo.activeAuthType ||
-            (userInfo.authTypes && userInfo.authTypes.length > 0 ?
-                userInfo.authTypes[0] : AUTH_TYPES.EMAIL);
+        if (loginMethod &&
+            userLoginExistsResponse.authTypes &&
+            userLoginExistsResponse.authTypes.includes(loginMethod)) {
+            return this.getStrategy(loginMethod);
+        }
+
+        // Fallback to activeAuthType or the first in authTypes list
+        const authTypeToUse = userLoginExistsResponse.activeAuthType ||
+            (userLoginExistsResponse.authTypes && userLoginExistsResponse.authTypes.length > 0 ?
+                userLoginExistsResponse.authTypes[0] : AUTH_TYPES.EMAIL);
 
         return this.getStrategy(authTypeToUse);
     }

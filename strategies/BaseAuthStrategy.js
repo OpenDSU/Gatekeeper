@@ -22,32 +22,49 @@ class BaseAuthStrategy {
      *   }
      */
     async checkUserExists(email) {
-        const response = await this.userLogin.userExists(email);
+        const response = await this.userLogin.userExists(email); // This returns raw data from persistence + some strategy enrichments
 
-        const authMetadata = {};
+        const collectedAuthMetadata = {};
 
         if (response.userExists) {
-            if (response.publicKeyCredentialRequestOptions) {
-                authMetadata.publicKeyCredentialRequestOptions = response.publicKeyCredentialRequestOptions;
-            }
-            if (response.challengeKey) {
-                authMetadata.challengeKey = response.challengeKey;
+            // Collect metadata from the primary strategy determined by userLogin.userExists
+            if (response.authMetadata) { // userLogin.userExists should provide enriched metadata
+                Object.assign(collectedAuthMetadata, response.authMetadata);
             }
 
-            authMetadata.totpEnabled = !!response.totpEnabled;
-            authMetadata.totpPendingSetup = !!response.totpPendingSetup;
+            // Ensure Passkey specific metadata is included if passkeys are available,
+            // regardless of the activeAuthType, because UI might want to offer passkey login.
+            if (response.authTypes && response.authTypes.includes(AUTH_TYPES.PASSKEY)) {
+                // To get fresh passkey challenge options, we might need to call its strategy.
+                // However, userLogin.userExists already calls the primary strategy's handleUserExists.
+                // If primary is Passkey, it's already included. If not, we might need an explicit call or ensure userLogin.userExists provides it.
+
+                // For now, let's assume response from userLogin.userExists contains the necessary raw fields if passkeys are present
+                // (e.g., it might have run passkeyStrategy's handleUserExists internally if passkeys are found)
+                if (response.publicKeyCredentialRequestOptions) {
+                    collectedAuthMetadata.publicKeyCredentialRequestOptions = response.publicKeyCredentialRequestOptions;
+                }
+                if (response.challengeKey) {
+                    collectedAuthMetadata.challengeKey = response.challengeKey;
+                }
+            }
+
+            // Include TOTP status
+            collectedAuthMetadata.totpEnabled = !!response.totpEnabled;
+            collectedAuthMetadata.totpPendingSetup = !!response.totpPendingSetup;
         }
 
-        const strategyMetadata = this.getAuthMetadata(response);
-        if (strategyMetadata && Object.keys(strategyMetadata).length > 0) {
-            Object.assign(authMetadata, strategyMetadata);
+        // Allow the specific strategy instance (this) to add/override its own metadata
+        const strategySpecificMetadata = this.getAuthMetadata(response); // Called on the specific strategy (e.g., EmailAuthStrategy)
+        if (strategySpecificMetadata && Object.keys(strategySpecificMetadata).length > 0) {
+            Object.assign(collectedAuthMetadata, strategySpecificMetadata);
         }
 
         return {
             userExists: response.userExists,
             activeAuthType: response.userExists ? response.activeAuthType : this.defaultAuthType,
             authTypes: response.authTypes || [this.defaultAuthType],
-            authMetadata
+            authMetadata: collectedAuthMetadata
         };
     }
 

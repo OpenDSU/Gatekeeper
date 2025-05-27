@@ -27,13 +27,10 @@ function getLoginStrategy(authType = AUTH_TYPES.EMAIL, persistence) {
     switch (authType) {
         case AUTH_TYPES.EMAIL:
             return new EmailUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges);
-            break;
         case AUTH_TYPES.PASSKEY:
             return new PasskeyUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges)
-            break;
         case AUTH_TYPES.TOTP:
             return new TotpUserLoginStrategy(persistence, webauthnUtils, crypto, loginChallenges)
-            break;
     }
 }
 

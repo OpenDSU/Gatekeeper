@@ -9,18 +9,14 @@ class PasskeyAuthStrategy extends BaseAuthStrategy {
 
 
     getAuthMetadata(userResponse) {
+        // The core passkey metadata (publicKeyCredentialRequestOptions, challengeKey)
+        // is now expected to be populated by UserLogin.userExists itself and placed into its returned authMetadata.
+        // This method is for any *additional* metadata this specific strategy instance might want to layer on top
+        // when checkUserExists is called *on an instance of PasskeyAuthStrategy*.
+        // For now, PasskeyAuthStrategy doesn't add anything extra here beyond what UserLogin.userExists provides.
         let metadata = {};
-
-        // Include passkey-specific fields even if passkey is not the active auth type
-        if (userResponse.userExists) {
-            if (userResponse.publicKeyCredentialRequestOptions) {
-                metadata.publicKeyCredentialRequestOptions = userResponse.publicKeyCredentialRequestOptions;
-            }
-            if (userResponse.challengeKey) {
-                metadata.challengeKey = userResponse.challengeKey;
-            }
-        }
-
+        // If there was a need to, for example, add a flag like `passkeyStrategyIsActiveContext: true`,
+        // this would be the place.
         return metadata;
     }
 
@@ -34,11 +30,9 @@ class PasskeyAuthStrategy extends BaseAuthStrategy {
         const result = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.PASSKEY, registrationData);
 
         if (result.status === STATUS.SUCCESS) {
-            return {
-                status: STATUS.SUCCESS,
-                message: "Passkey registration successful.",
-                walletKey: result.walletKey
-            };
+            result.message = "Passkey registration successful.";
+            result.userId = result.globalUserId;
+            return result;
         } else {
             throw new Error(result.reason || "Failed to register passkey");
         }
@@ -75,10 +69,8 @@ class PasskeyAuthStrategy extends BaseAuthStrategy {
         const result = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.PASSKEY, registrationData);
 
         if (result.status === STATUS.SUCCESS) {
-            return {
-                success: true,
-                walletKey: result.walletKey
-            };
+            result.success = true;
+            return result;
         } else {
             throw new Error(result.reason || "Failed to create passkey user");
         }

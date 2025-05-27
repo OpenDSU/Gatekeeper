@@ -42,11 +42,19 @@ module.exports = async function (server) {
 
     server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
-    server.post(`${AUTH_API_PREFIX}/generateAuthCode`, auth.generateAuthCode);
+    server.post(`${AUTH_API_PREFIX}/sendCodeByEmail/:email`, auth.sendCodeByEmail);
 
-    server.post(`${AUTH_API_PREFIX}/walletLogin`, auth.walletLogin);
+    server.post(`${AUTH_API_PREFIX}/loginWithEmailCode/:email`, auth.loginWithEmailCode);
 
-    server.post(`${AUTH_API_PREFIX}/walletLogout`, auth.walletLogout);
+    server.post(`${AUTH_API_PREFIX}/generatePasskeyChallenge`, auth.generatePasskeyChallenge);
+
+    server.post(`${AUTH_API_PREFIX}/loginWithPasskey`, auth.loginWithPasskey);
+
+    server.post(`${AUTH_API_PREFIX}/loginWithTotp`, auth.loginWithTotp);
+
+    server.post(`${AUTH_API_PREFIX}/register/:email`, auth.register);
+
+    server.post(`${AUTH_API_PREFIX}/logout`, auth.walletLogout);
 
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);
 
@@ -61,6 +69,7 @@ module.exports = async function (server) {
     server.post(`${AUTH_API_PREFIX}/verifyTotp`, auth.verifyTotp);
 
     server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
+    
     server.get(`${AUTH_API_PREFIX}/passKeyConfig`, async (req, res) => {
         let config = { rp_id: process.env.RP_ID, app_name: process.env.APP_NAME }
         res.writeHead(200, { 'Content-Type': 'application/json' });

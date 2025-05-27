@@ -1,11 +1,11 @@
-const {generateId, generateWalletKey, getLoginStrategy} = require('../utils/pluginUtils');
+const { generateId, generateWalletKey, getLoginStrategy } = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
 
 const sessionCache = new Map();
 
 
-const {AUTH_TYPES, STATUS, ERROR_REASONS} = require('../constants/authConstants');
+const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../constants/authConstants');
 
 
 async function UserLogin() {
@@ -25,31 +25,47 @@ async function UserLogin() {
             }
 
             const defaultAuthType = user.authTypes && user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL;
-            const strategy = getLoginStrategy(defaultAuthType, persistence);
-            const strategyResult = await strategy.handleUserExists(user);
+            const primaryStrategy = getLoginStrategy(defaultAuthType, persistence);
+            const primaryStrategyResult = await primaryStrategy.handleUserExists(user);
+
+            let finalAuthMetadata = { ...(primaryStrategyResult.authMetadata || {}) };
+            finalAuthMetadata.totpEnabled = !!user.totpEnabled;
+            finalAuthMetadata.totpPendingSetup = !!user.totpPendingSetup;
 
             if (user.passkeyCredentials && user.passkeyCredentials.length > 0 && defaultAuthType !== AUTH_TYPES.PASSKEY) {
                 const passkeyStrategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
-                const passkeyResult = await passkeyStrategy.handleUserExists(user);
-
-                if (passkeyResult.publicKeyCredentialRequestOptions) {
-                    strategyResult.publicKeyCredentialRequestOptions = passkeyResult.publicKeyCredentialRequestOptions;
-                }
-                if (passkeyResult.challengeKey) {
-                    strategyResult.challengeKey = passkeyResult.challengeKey;
+                const passkeyStrategyResult = await passkeyStrategy.handleUserExists(user);
+                if (passkeyStrategyResult.authMetadata) {
+                    if (passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions) {
+                        finalAuthMetadata.publicKeyCredentialRequestOptions = passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions;
+                    }
+                    if (passkeyStrategyResult.authMetadata.challengeKey) {
+                        finalAuthMetadata.challengeKey = passkeyStrategyResult.authMetadata.challengeKey;
+                    }
                 }
             }
+
+            if (primaryStrategyResult.authMetadata?.publicKeyCredentialRequestOptions) {
+                finalAuthMetadata.publicKeyCredentialRequestOptions = primaryStrategyResult.authMetadata.publicKeyCredentialRequestOptions;
+            }
+            if (primaryStrategyResult.authMetadata?.challengeKey) {
+                finalAuthMetadata.challengeKey = primaryStrategyResult.authMetadata.challengeKey;
+            }
+
             return {
                 status: STATUS.SUCCESS,
                 userExists: true,
                 authTypes: user.authTypes || [AUTH_TYPES.EMAIL],
-                ...strategyResult
+                activeAuthType: primaryStrategyResult.activeAuthType || defaultAuthType,
+                authMetadata: finalAuthMetadata
             };
         }
         return {
             status: STATUS.SUCCESS,
             userExists: false,
-            authTypes: [AUTH_TYPES.EMAIL]
+            authTypes: [AUTH_TYPES.EMAIL],
+            activeAuthType: AUTH_TYPES.EMAIL,
+            authMetadata: {}
         };
     }
 
@@ -81,6 +97,7 @@ async function UserLogin() {
         let sessionId = await createSessionForUser(user);
         user.sessionId = sessionId;
         user.status = STATUS.SUCCESS;
+        user.globalUserId = userAsset.id;
         return user;
     }
 
@@ -140,7 +157,7 @@ async function UserLogin() {
     self.authorizeUser = async function (email, loginData, challengeKey, loginMethod = "") {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.ACCOUNT_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.ACCOUNT_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
         let now = new Date().getTime();
@@ -153,8 +170,7 @@ async function UserLogin() {
                     lockTime: user.lastLoginAttempt + expiryTimeout - now
                 };
             } else {
-                await resetLoginAttempts(email);
-                user = await persistence.getUserLoginStatus(email);
+                user = await resetLoginAttempts(email);
             }
         }
 
@@ -182,18 +198,17 @@ async function UserLogin() {
             verificationResult = await strategy.handleAuthorizeUser(user, loginData, challengeKey);
         } catch (e) {
             console.error(`Error during ${authMethodToUse} authorization strategy:`, e);
-            await incrementLoginAttempts(email);
-            return {status: STATUS.FAILED, reason: `Authorization error: ${e.message}`};
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: `Authorization error: ${e.message}` };
         }
 
         if (verificationResult.verified) {
-            user.loginAttempts = 0;
-            user.lastLoginAttempt = null;
+            user = await resetLoginAttempts(user.email);
 
             if (verificationResult.update && typeof verificationResult.update === 'object') {
                 Object.assign(user, verificationResult.update);
+                await persistence.updateUserLoginStatus(user.id, user);
             }
-            await persistence.updateUserLoginStatus(user.id, user);
             let sessionId = await createSessionForUser(user);
 
             return {
@@ -205,8 +220,8 @@ async function UserLogin() {
                 userId: user.globalUserId
             };
         } else {
-            await incrementLoginAttempts(email);
-            return {status: STATUS.FAILED, reason: verificationResult.reason || ERROR_REASONS.INVALID_CREDENTIALS};
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: verificationResult.reason || ERROR_REASONS.INVALID_CREDENTIALS };
         }
     }
 
@@ -217,15 +232,28 @@ async function UserLogin() {
         if (!userExists) {
             user = await self.createUser(email, name, referrerId, AUTH_TYPES.EMAIL, null);
             return {
-                userId: user.id,
+                userId: user.globalUserId,
                 status: STATUS.SUCCESS,
                 code: user.validationEmailCode,
                 walletKey: user.walletKey,
-                authTypes: user.authTypes || [AUTH_TYPES.EMAIL]
+                authTypes: user.authTypes || [AUTH_TYPES.EMAIL],
+                sessionId: user.sessionId
             };
         }
 
         user = await persistence.getUserLoginStatus(email);
+
+        let now = new Date().getTime();
+        if (user.loginAttempts >= maxLoginAttempts) {
+            if (user.lastLoginAttempt && now < user.lastLoginAttempt + expiryTimeout) {
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                    lockTime: user.lastLoginAttempt + expiryTimeout - now
+                };
+            }
+            user = await resetLoginAttempts(email);
+        }
 
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
@@ -233,35 +261,23 @@ async function UserLogin() {
 
         const strategy = getLoginStrategy(AUTH_TYPES.EMAIL, persistence);
 
-        if (user.loginAttempts >= maxLoginAttempts) {
-            if (user.lastLoginAttempt && new Date().getTime() < user.lastLoginAttempt + expiryTimeout) {
-                return {
-                    status: STATUS.FAILED,
-                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
-                    lockTime: user.lastLoginAttempt + expiryTimeout - new Date().getTime()
-                };
-            }
-            await resetLoginAttempts(email);
-            user = await persistence.getUserLoginStatus(email);
-        }
-
         return await strategy.handleGetUserValidationCode(user);
     };
 
     self.checkSessionId = async function (sessionId) {
         if (sessionCache.has(sessionId)) {
-            return {status: STATUS.SUCCESS, ...sessionCache.get(sessionId)};
+            return { status: STATUS.SUCCESS, ...sessionCache.get(sessionId) };
         }
 
         let sessionExists = await persistence.hasSession(sessionId);
         if (!sessionExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.SESSION_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.SESSION_NOT_EXISTS };
         }
         let session = await persistence.getSession(sessionId);
         console.log("DEBUG----------: session", session);
         let userExists = await persistence.hasUserLoginStatus(session.userLoginId);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_SESSION_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_SESSION_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(session.userLoginId);
 
@@ -276,7 +292,7 @@ async function UserLogin() {
             authTypes: user.authTypes
         };
 
-        sessionCache.set(sessionId, {userLoginId: user.id, ...sessionData});
+        sessionCache.set(sessionId, { userLoginId: user.id, ...sessionData });
 
         return {
             status: STATUS.SUCCESS,
@@ -288,21 +304,17 @@ async function UserLogin() {
         try {
             await persistence.deleteSession(sessionId);
             sessionCache.delete(sessionId);
-            return {status: STATUS.SUCCESS};
+            return { status: STATUS.SUCCESS };
         } catch (e) {
             console.error(`Error deleting session ${sessionId}:`, e);
-            return {status: STATUS.SUCCESS, error: "Failed to delete session server-side"};
+            return { status: STATUS.SUCCESS, error: "Failed to delete session server-side" };
         }
-    }
-
-    self.isSysAdmin = async function (email) {
-        return process.env.SYSADMIN_EMAIL === email;
     }
 
     self.getUserInfo = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
 
@@ -332,7 +344,7 @@ async function UserLogin() {
     self.deletePasskey = async function (email, credentialId) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
 
         let user = await persistence.getUserLoginStatus(email);
@@ -350,14 +362,14 @@ async function UserLogin() {
             return await strategy.handleDeletePasskey(user, credentialId);
         } catch (e) {
             console.error(`Error deleting passkey for ${email}:`, e);
-            return {status: STATUS.FAILED, reason: `Failed to delete passkey: ${e.message}`};
+            return { status: STATUS.FAILED, reason: `Failed to delete passkey: ${e.message}` };
         }
     }
 
     self.deleteTotp = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
 
         let user = await persistence.getUserLoginStatus(email);
@@ -375,24 +387,25 @@ async function UserLogin() {
             return await strategy.handleDeleteTotp(user);
         } catch (e) {
             console.error(`Error deleting TOTP for ${email}:`, e);
-            return {status: STATUS.FAILED, reason: `Failed to delete TOTP: ${e.message}`};
+            return { status: STATUS.FAILED, reason: `Failed to delete TOTP: ${e.message}` };
         }
     }
 
     self.setUserInfo = async function (email, userInfo) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
-        user.userInfo = {...(user.userInfo || {}), ...userInfo};
+        user.userInfo = { ...(user.userInfo || {}), ...userInfo };
         await persistence.updateUserLoginStatus(user.id, user);
-        return {status: STATUS.SUCCESS};
+        return { status: STATUS.SUCCESS };
     }
 
     const incrementLoginAttempts = async function (email) {
         try {
             let user = await persistence.getUserLoginStatus(email);
+            if (!user) return;
             user.loginAttempts = (user.loginAttempts || 0) + 1;
             user.lastLoginAttempt = new Date().getTime();
             await persistence.updateUserLoginStatus(user.id, user);
@@ -404,23 +417,26 @@ async function UserLogin() {
     const resetLoginAttempts = async function (email) {
         try {
             let user = await persistence.getUserLoginStatus(email);
+            if (!user) return null;
             user.loginAttempts = 0;
             user.lastLoginAttempt = null;
             await persistence.updateUserLoginStatus(user.id, user);
+            return user;
         } catch (e) {
             console.error(`Failed to reset login attempts for ${email}:`, e);
+            return null;
         }
     }
 
     self.shutDown = async function () {
         await persistence.shutDown();
-        return {status: STATUS.SUCCESS};
+        return { status: STATUS.SUCCESS };
     }
 
     self.setTotpSecret = async function (email, secret) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
 
@@ -434,17 +450,17 @@ async function UserLogin() {
         }
         try {
             await strategy.handleSetTotpSecret(user, secret);
-            return {status: STATUS.SUCCESS};
+            return { status: STATUS.SUCCESS };
         } catch (e) {
             console.error(`Error setting TOTP secret for ${email}:`, e);
-            return {status: STATUS.FAILED, reason: `Failed to set TOTP secret: ${e.message}`};
+            return { status: STATUS.FAILED, reason: `Failed to set TOTP secret: ${e.message}` };
         }
     }
 
     self.verifyAndEnableTotp = async function (email, token) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS};
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
 
@@ -468,13 +484,13 @@ async function UserLogin() {
                     user.authTypes.push(AUTH_TYPES.TOTP);
                     await persistence.updateUserLoginStatus(user.id, user);
                 }
-                return {status: STATUS.SUCCESS};
+                return { status: STATUS.SUCCESS };
             } else {
-                return {status: STATUS.FAILED, reason: result.reason || ERROR_REASONS.INVALID_TOTP_CODE};
+                return { status: STATUS.FAILED, reason: result.reason || ERROR_REASONS.INVALID_TOTP_CODE };
             }
         } catch (e) {
             console.error(`Error verifying/enabling TOTP for ${email}:`, e);
-            return {status: STATUS.FAILED, reason: `Verification error: ${e.message}`};
+            return { status: STATUS.FAILED, reason: `Verification error: ${e.message}` };
         }
     }
 
@@ -493,12 +509,17 @@ module.exports = {
     getAllow: function () {
         return async function (globalUserId, email, command, ...args) {
             let user;
+            let userExists;
             switch (command) {
-                case "userExists":
                 case "createUser":
+                    userExists = await singletonInstance.persistence.hasUserLoginStatus(args[0]);
+                    if (userExists) {
+                        return false;
+                    }
+                    return true;
+                case "userExists":
                 case "checkSessionId":
                 case "logout":
-                case "isSysAdmin":
                     return true;
                 case "getUserInfo":
                     if (globalUserId === "*") {
@@ -517,8 +538,19 @@ module.exports = {
                 case "registerNewPasskey":
                 case "verifyAndEnableTotp":
                 case "setTotpSecret":
+                    console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
+                    user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
+                    console.log("DEBUG----------: user", user);
+                    if (user && user.globalUserId === globalUserId) {
+                        return true;
+                    }
+                    return false;
                 case "getUserValidationEmailCode":
                     console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
+                    userExists = await singletonInstance.persistence.hasUserLoginStatus(args[0]);
+                    if (!userExists) {
+                        return true;
+                    }
                     user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
                     if (user && user.globalUserId === globalUserId) {
                         return true;
