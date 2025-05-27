@@ -689,7 +689,7 @@ const loginWithEmailCode = async function (req, res) {
     }
 
     req.email = email;
-    const factory = await initStrategyFactory(req); // Use factory with session for login
+    const factory = await initStrategyFactory(req);
 
     try {
         const strategy = factory.getStrategy(AUTH_TYPES.EMAIL);
@@ -751,11 +751,9 @@ const register = async (req, res) => {
             const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
             await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
             logger.info(`DSU created for new EMAIL user ${email}`);
-
-            // set sessionId in cookies
-            res.setHeader('Set-Cookie', utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId));
+            const responseMessage = { code: result.code };
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ operation: "success" }));
+            res.end(JSON.stringify(responseMessage));
             logger.info(`User ${email} registered successfully.`);
         } else {
             res.writeHead(400, { 'Content-Type': 'application/json' });
