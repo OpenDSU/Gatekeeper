@@ -99,7 +99,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         await this.persistence.updateUserLoginStatus(user.id, user);
     }
 
-    async verifyAndEnableTotp(user, token) {
+    async confirmTotpSetup(user, token) {
         if (!user.totpSecret) {
             return { verified: false, reason: ERROR_REASONS.TOTP_SETUP_NOT_INITIATED };
         }

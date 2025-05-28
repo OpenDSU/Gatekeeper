@@ -88,7 +88,7 @@ const sendCodeByEmail = async function (req, res) {
 
     try {
         const userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
-        const result = await userLoginClient.getUserValidationEmailCode(email, parsedData?.name, parsedData?.referrerId);
+        const result = await userLoginClient.requestEmailCode(email, parsedData?.name, parsedData?.referrerId);
 
         if (result.status === STATUS.SUCCESS) {
             let responseMessage = { status: STATUS.SUCCESS };
@@ -572,7 +572,7 @@ const enableTotp = async (req, res) => {
         }
 
         const client = await initAPIClient(req, constants.USER_PLUGIN);
-        const result = await client.verifyAndEnableTotp(userEmail, token);
+        const result = await client.confirmTotpSetup(userEmail, token);
 
         if (result.status === STATUS.SUCCESS) {
             res.writeHead(200, { 'Content-Type': 'application/json' });

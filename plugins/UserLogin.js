@@ -413,7 +413,7 @@ async function UserLogin() {
         return sessionId;
     }
 
-    self.getUserValidationEmailCode = async function (email, name, referrerId) {
+    self.requestEmailCode = async function (email, name, referrerId) {
         let userExists = await persistence.hasUserLoginStatus(email);
         let user;
 
@@ -750,7 +750,7 @@ async function UserLogin() {
         }
     }
 
-    self.verifyAndEnableTotp = async function (email, token) {
+    self.confirmTotpSetup = async function (email, token) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
@@ -780,12 +780,12 @@ async function UserLogin() {
         }
 
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
-        if (!strategy || typeof strategy.verifyAndEnableTotp !== 'function') {
+        if (!strategy || typeof strategy.confirmTotpSetup !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
 
         try {
-            const result = await strategy.verifyAndEnableTotp(user, token);
+            const result = await strategy.confirmTotpSetup(user, token);
             if (result.verified) {
                 // Reset login attempts on successful verification
                 user = await resetLoginAttempts(email);
@@ -834,6 +834,8 @@ module.exports = {
                 case "userExists":
                 case "checkSessionId":
                 case "loginWithEmailCode":
+                case "loginWithPasskey":
+                case "loginWithTotp":
                 case "logout":
                     return true;
                 case "getUserInfo":
@@ -849,17 +851,15 @@ module.exports = {
                 case "deletePasskey":
                 case "deleteTotp":
                 case "setUserInfo":
-                case "loginWithPasskey":
-                case "loginWithTotp":
                 case "addPasskey":
-                case "verifyAndEnableTotp":
+                case "confirmTotpSetup":
                 case "setupTotp":
                     user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
                     if (user && user.globalUserId === globalUserId) {
                         return true;
                     }
                     return false;
-                case "getUserValidationEmailCode":
+                case "requestEmailCode":
                     userExists = await singletonInstance.persistence.hasUserLoginStatus(args[0]);
                     if (!userExists) {
                         return true;
