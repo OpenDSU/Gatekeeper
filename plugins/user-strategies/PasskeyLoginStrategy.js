@@ -1,4 +1,4 @@
-const UserLoginStrategyInterface = require('./UserLoginStrategyInterface');
+const UserLoginStrategyInterface = require('./LoginStrategyInterface');
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../../constants/authConstants');
 const AUDIT_EVENTS = require('../../Persisto/src/audit/AuditEvents.cjs');
 const SystemAudit = require('../../Persisto/src/audit/SystemAudit.cjs');
@@ -203,7 +203,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleGetUserValidationCode(user) {
+    async handleGetEmailCode(user) {
         return {
             status: STATUS.FAILED,
             reason: ERROR_REASONS.ACCOUNT_USES_PASSKEY,

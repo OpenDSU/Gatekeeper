@@ -2,8 +2,8 @@ const crypto = require("crypto");
 const { AUTH_TYPES } = require("../constants/authConstants");
 const webauthnUtils = require("../authenticator/webauthn");
 const EmailUserLoginStrategy = require("../plugins/user-strategies/EmailLoginStrategy");
-const PasskeyUserLoginStrategy = require("../plugins/user-strategies/PasskeyUserLoginStrategy");
-const TotpUserLoginStrategy = require("../plugins/user-strategies/TotpUserLoginStrategy");
+const PasskeyUserLoginStrategy = require("../plugins/user-strategies/PasskeyLoginStrategy");
+const TotpUserLoginStrategy = require("../plugins/user-strategies/TotpLoginStrategy");
 
 
 

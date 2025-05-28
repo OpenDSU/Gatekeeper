@@ -1,4 +1,4 @@
-const UserLoginStrategyInterface = require('./UserLoginStrategyInterface');
+const UserLoginStrategyInterface = require('./LoginStrategyInterface');
 const { AUTH_TYPES, STATUS, ERROR_REASONS, TOTP_SETTINGS } = require('../../constants/authConstants');
 class TotpUserLoginStrategy extends UserLoginStrategyInterface {
     constructor(persistence, webauthnUtils, crypto, loginChallenges) {

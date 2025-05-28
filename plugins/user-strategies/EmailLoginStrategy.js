@@ -1,4 +1,4 @@
-const UserLoginStrategyInterface = require('./UserLoginStrategyInterface');
+const UserLoginStrategyInterface = require('./LoginStrategyInterface');
 
 const expiryTimeout = 5 * 60 * 1000;
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../../constants/authConstants');
