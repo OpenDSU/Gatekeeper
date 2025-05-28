@@ -3,10 +3,12 @@ const process = require("process");
 const openDSU = require('opendsu');
 const system = openDSU.loadApi("system");
 const baseURL = system.getBaseURL();
-const resolver = openDSU.loadAPI("resolver");
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
+
+// Shared challenge cache for passkey registration
+const challengeCache = new Map();
 
 async function initAPIClient(req, pluginName) {
     const userId = req.userId;
@@ -63,113 +65,6 @@ const userExists = async function (req, res) {
         logger.error(`Error in userExists for ${req.params.email}: ${err.message}`, err.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: err.message }));
-    }
-}
-
-const generateAuthCode = async function (req, res) {
-    let authData = req.body;
-    let parsedData;
-    try {
-        parsedData = JSON.parse(authData);
-        utils.validateEmail(parsedData.email);
-    } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        logger.debug(`Invalid data for generateAuthCode: ${e.message}`);
-        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
-    }
-
-    const { email, name, referrerId, authType } = parsedData;
-    req.email = email;
-
-    try {
-        const userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
-
-        let result;
-        switch (authType) {
-            case AUTH_TYPES.EMAIL:
-                result = await userLoginClient.getUserValidationEmailCode(email, name, referrerId);
-                break;
-            case AUTH_TYPES.PASSKEY:
-                if (!parsedData.registrationData) {
-                    throw new Error("Missing registrationData for passkey signup.");
-                }
-                result = await userLoginClient.createUser(email, name, referrerId, AUTH_TYPES.PASSKEY, parsedData.registrationData);
-                break;
-            case AUTH_TYPES.TOTP:
-                result = await userLoginClient.createUser(email, name, referrerId, AUTH_TYPES.TOTP, null);
-                if (result.status === STATUS.SUCCESS) {
-                    // Generate TOTP setup data
-                    const totpSetupResult = await userLoginClient.setupTotp(email);
-                    if (totpSetupResult.status === STATUS.SUCCESS) {
-                        result.uri = totpSetupResult.uri;
-                        result.secret = totpSetupResult.secret;
-                    }
-                }
-                break;
-            default:
-                throw new Error(`Unsupported auth type: ${authType}`);
-        }
-
-        if (result.status === STATUS.SUCCESS) {
-            // Create DSU for new users
-            if (result.walletKey) {
-                const versionlessSSI = utils.getVersionlessSSI(email, result.walletKey);
-                await $$.promisify(resolver.createDSUForExistingSSI)(versionlessSSI);
-                logger.info(`DSU created for new ${authType} user ${email}`);
-            }
-
-            // Send email if needed
-            if (authType === AUTH_TYPES.EMAIL && result.code) {
-                let responseMessage = { status: STATUS.SUCCESS };
-                if (process.env.NODE_ENV === 'development' || parsedData.origin === "http://localhost:8080") {
-                    responseMessage.code = result.code;
-                } else {
-                    const emailClient = await initAPIClientAdmin(req, constants.EMAIL_PLUGIN);
-                    try {
-                        await emailClient.sendEmail(
-                            result.userId || result.globalUserId,
-                            email,
-                            process.env.SENDGRID_SENDER_EMAIL,
-                            "Your authentication code",
-                            `Your authentication code is: ${result.code}`,
-                            `Your authentication code is: <strong>${result.code}</strong>`
-                        );
-                        logger.info(`Sent auth code email to ${email}`);
-                    } catch (err) {
-                        logger.error(`Failed to send email to ${email}: ${err.message}`);
-                    }
-                }
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify(responseMessage));
-            }
-
-            // Set cookies for new users
-            if (result.sessionId) {
-                res.setHeader('Set-Cookie', utils.createAuthCookies(
-                    result.userId || result.globalUserId,
-                    result.email || email,
-                    result.walletKey,
-                    result.sessionId
-                ));
-            }
-
-            // Prepare response
-            const response = {
-                status: STATUS.SUCCESS,
-                message: result.message || `${authType} setup successful`
-            };
-            if (result.uri) response.uri = result.uri;
-            if (result.secret) response.secret = result.secret;
-
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify(response));
-        } else {
-            throw new Error(result.reason || "Failed to generate auth code");
-        }
-    } catch (e) {
-        logger.error(`Error during generateAuthCode for ${parsedData.email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 }
 
@@ -280,6 +175,83 @@ const generatePasskeyChallenge = async function (req, res) {
     // But keeping it for compatibility
     res.writeHead(501, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: "Use /userExists endpoint to get passkey challenge" }));
+}
+
+const generatePasskeyRegistrationOptions = async function (req, res) {
+    let requestData = req.body;
+    let parsedData;
+    try {
+        parsedData = JSON.parse(requestData);
+        utils.validateEmail(parsedData.email);
+    } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        logger.debug(`Invalid data for generatePasskeyRegistrationOptions: ${e.message}`);
+        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+    }
+
+    const { email } = parsedData;
+    req.email = email;
+
+    try {
+        const userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
+
+        // Check if user already exists
+        const userExistsResponse = await userLoginClient.userExists(email);
+        if (userExistsResponse.userExists) {
+            res.writeHead(409, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "User already exists" }));
+        }
+
+        // Generate registration options on server
+        const crypto = require("crypto");
+        const challenge = crypto.randomBytes(32);
+        const challengeKey = `register_challenge_${email}_${Date.now()}`;
+
+        // Store challenge temporarily (5 minutes)
+        challengeCache.set(challengeKey, {
+            challenge: challenge.toString('base64url'),
+            email: email,
+            timestamp: Date.now()
+        });
+
+        // Clean up expired challenges
+        setTimeout(() => challengeCache.delete(challengeKey), 5 * 60 * 1000);
+
+        const publicKeyCredentialCreationOptions = {
+            challenge: challenge.toString('base64url'),
+            rp: {
+                name: process.env.RP_NAME || "Outfinity Gift",
+                id: process.env.RP_ID,
+            },
+            user: {
+                id: Buffer.from(email).toString('base64url'),
+                name: email,
+                displayName: email,
+            },
+            pubKeyCredParams: [
+                { type: 'public-key', alg: -7 }, // ES256
+                { type: 'public-key', alg: -257 }, // RS256
+            ],
+            authenticatorSelection: {
+                requireResidentKey: false,
+                userVerification: 'required',
+            },
+            timeout: 60000,
+            attestation: 'direct'
+        };
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: "success",
+            publicKeyCredentialCreationOptions: JSON.stringify(publicKeyCredentialCreationOptions),
+            challengeKey: challengeKey
+        }));
+
+    } catch (e) {
+        logger.error(`Error during generatePasskeyRegistrationOptions for ${email}: ${e.message}`, e.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+    }
 }
 
 const loginWithPasskey = async function (req, res) {
@@ -461,10 +433,15 @@ const registerNewPasskey = async (req, res) => {
         return res.end(JSON.stringify({ error: "Authentication required." }));
     }
 
-    let registrationData;
+    let requestData;
     try {
-        registrationData = JSON.parse(req.body);
-        if (!registrationData || !registrationData.id || !registrationData.rawId || !registrationData.type || !registrationData.response ||
+        requestData = JSON.parse(req.body);
+        if (!requestData.registrationData || !requestData.challengeKey) {
+            throw new Error("Missing registrationData or challengeKey.");
+        }
+
+        const { registrationData } = requestData;
+        if (!registrationData.id || !registrationData.rawId || !registrationData.type || !registrationData.response ||
             !registrationData.response.clientDataJSON || !registrationData.response.attestationObject) {
             throw new Error("Invalid passkey registration data structure.");
         }
@@ -476,8 +453,23 @@ const registerNewPasskey = async (req, res) => {
 
     let email = decodeURIComponent(req.email);
     try {
+        // Validate challenge
+        const challengeData = challengeCache.get(requestData.challengeKey);
+        if (!challengeData) {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Invalid or expired registration challenge." }));
+        }
+
+        if (challengeData.email !== email || challengeData.type !== 'additional') {
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            return res.end(JSON.stringify({ error: "Challenge validation failed." }));
+        }
+
+        // Clean up used challenge
+        challengeCache.delete(requestData.challengeKey);
+
         const client = await initAPIClient(req, constants.USER_PLUGIN);
-        let result = await client.registerNewPasskey(email, registrationData);
+        let result = await client.registerNewPasskey(email, requestData.registrationData);
 
         if (result.status === STATUS.SUCCESS) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -492,6 +484,68 @@ const registerNewPasskey = async (req, res) => {
         logger.error(`Error during registerNewPasskey for ${email}: ${e.message}`, e.stack);
         const statusCode = e.message.includes("already registered") ? 409 : 500;
         res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+    }
+}
+
+const generateAdditionalPasskeyOptions = async (req, res) => {
+    if (!req.userId || !req.email) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: "Authentication required." }));
+    }
+
+    const email = decodeURIComponent(req.email);
+
+    try {
+        // Generate registration options on server for additional passkey
+        const crypto = require("crypto");
+        const challenge = crypto.randomBytes(32);
+        const challengeKey = `additional_passkey_challenge_${email}_${Date.now()}`;
+
+        // Store challenge temporarily (5 minutes)
+        challengeCache.set(challengeKey, {
+            challenge: challenge.toString('base64url'),
+            email: email,
+            timestamp: Date.now(),
+            type: 'additional'
+        });
+
+        // Clean up expired challenges
+        setTimeout(() => challengeCache.delete(challengeKey), 5 * 60 * 1000);
+
+        const publicKeyCredentialCreationOptions = {
+            challenge: challenge.toString('base64url'),
+            rp: {
+                name: process.env.RP_NAME || "Outfinity Gift",
+                id: process.env.RP_ID,
+            },
+            user: {
+                id: Buffer.from(email).toString('base64url'),
+                name: email,
+                displayName: email,
+            },
+            pubKeyCredParams: [
+                { type: 'public-key', alg: -7 }, // ES256
+                { type: 'public-key', alg: -257 }, // RS256
+            ],
+            authenticatorSelection: {
+                requireResidentKey: false,
+                userVerification: 'required',
+            },
+            timeout: 60000,
+            attestation: 'direct'
+        };
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: "success",
+            publicKeyCredentialCreationOptions: JSON.stringify(publicKeyCredentialCreationOptions),
+            challengeKey: challengeKey
+        }));
+
+    } catch (e) {
+        logger.error(`Error during generateAdditionalPasskeyOptions for ${email}: ${e.message}`, e.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 }
@@ -798,16 +852,17 @@ const getAuthTypes = async function (req, res) {
 
 module.exports = {
     userExists,
-    generateAuthCode,
     sendCodeByEmail,
     loginWithEmailCode,
     generatePasskeyChallenge,
+    generatePasskeyRegistrationOptions,
     loginWithPasskey,
     loginWithTotp,
     walletLogout,
     getUserInfo,
     setUserInfo,
     registerNewPasskey,
+    generateAdditionalPasskeyOptions,
     deletePasskey,
     registerTotp,
     verifyTotp,

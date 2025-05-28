@@ -44,13 +44,15 @@ module.exports = async function (server) {
 
     server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
-    server.post(`${AUTH_API_PREFIX}/generateAuthCode`, auth.generateAuthCode);
-
     server.post(`${AUTH_API_PREFIX}/sendCodeByEmail`, auth.sendCodeByEmail);
 
     server.post(`${AUTH_API_PREFIX}/loginWithEmailCode`, auth.loginWithEmailCode);
 
     server.post(`${AUTH_API_PREFIX}/generatePasskeyChallenge`, auth.generatePasskeyChallenge);
+
+    server.post(`${AUTH_API_PREFIX}/generatePasskeyRegistrationOptions`, auth.generatePasskeyRegistrationOptions);
+
+    server.post(`${AUTH_API_PREFIX}/generateAdditionalPasskeyOptions`, auth.generateAdditionalPasskeyOptions);
 
     server.post(`${AUTH_API_PREFIX}/loginWithPasskey`, auth.loginWithPasskey);
 
