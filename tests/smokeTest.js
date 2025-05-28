@@ -13,38 +13,38 @@ async function smokeTest() {
         console.log("User created", user);
 
         let userExists = await UserLogin.userExists(email);
-        if(!userExists.userExists){
+        if (!userExists.userExists) {
             throw new Error("userExists check failed");
         }
 
         let validationResult = await UserLogin.getUserValidationEmailCode(email);
-        if(validationResult.status === "failed"){
+        if (validationResult.status === "failed") {
             throw new Error("get email validation code failed");
         }
 
-        let authResult = await UserLogin.authorizeUser(email, validationResult.code);
-        if(authResult.status === "failed"){
+        let authResult = await UserLogin.loginWithEmailCode(email, validationResult.code);
+        if (authResult.status === "failed") {
             throw new Error("Login failed");
         }
         console.log("User Logged in, sessionId:", authResult.sessionId);
 
         let authorized = await UserLogin.checkSessionId(email, authResult.sessionId);
-        if(authorized.status === "failed"){
+        if (authorized.status === "failed") {
             throw new Error("SessionId check failed");
         }
 
         let logoutResult = await UserLogin.logout(email);
-        if(logoutResult.status === "failed"){
+        if (logoutResult.status === "failed") {
             throw new Error("Logout failed");
         }
         console.log("User logged out");
         let result = await UserLogin.checkSessionId(email, "");
-        if(result.status === "success"){
+        if (result.status === "success") {
             throw new Error("SessionId check after logout should have failed");
         }
 
         let userInfoResult = await UserLogin.getUserInfo(email);
-        if(userInfoResult.status === "failed"){
+        if (userInfoResult.status === "failed") {
             throw new Error("getUserInfo failed");
         }
         let userInfoData = {};
@@ -57,13 +57,13 @@ async function smokeTest() {
         }
         await UserLogin.setUserInfo(email, userInfoData);
         let userInfoCheck = await UserLogin.getUserInfo(email);
-        if(userInfoCheck.userInfo !== userInfoData){
+        if (userInfoCheck.userInfo !== userInfoData) {
             throw new Error("getUserInfo check failed");
         }
 
         await UserLogin.shutDown();
     } else {
-       throw new Error("User already exists");
+        throw new Error("User already exists");
     }
 }
 

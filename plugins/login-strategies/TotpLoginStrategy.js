@@ -1,11 +1,12 @@
 const UserLoginStrategyInterface = require('./LoginStrategyInterface');
 const { AUTH_TYPES, STATUS, ERROR_REASONS, TOTP_SETTINGS } = require('../../constants/authConstants');
+
 class TotpUserLoginStrategy extends UserLoginStrategyInterface {
     constructor(persistence, webauthnUtils, crypto, loginChallenges) {
         super(persistence, webauthnUtils, crypto, loginChallenges);
     }
 
-    async handleUserExists(user) {
+    async userExists(user) {
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
@@ -32,7 +33,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleCreateUser(userPayload) {
+    async createUser(userPayload) {
         userPayload.totpSecret = undefined;
         userPayload.totpEnabled = false;
         userPayload.totpPendingSetup = true;
@@ -44,7 +45,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleAuthorizeUser(user, loginData) {
+    async verifyCredentials(user, loginData) {
         const totpCode = loginData;
 
         if (typeof totpCode !== 'string') {
@@ -82,15 +83,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleGetEmailCode(_user) {
-        return {
-            status: STATUS.FAILED,
-            reason: ERROR_REASONS.USE_TOTP,
-            authTypes: _user.authTypes || [AUTH_TYPES.TOTP]
-        };
-    }
-
-    async handleSetTotpSecret(user, secret) {
+    async setTotpSecret(user, secret) {
         user.totpSecret = secret;
         user.totpEnabled = false;
         user.totpPendingSetup = true;
@@ -106,7 +99,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         await this.persistence.updateUserLoginStatus(user.id, user);
     }
 
-    async handleVerifyAndEnableTotp(user, token) {
+    async verifyAndEnableTotp(user, token) {
         if (!user.totpSecret) {
             return { verified: false, reason: ERROR_REASONS.TOTP_SETUP_NOT_INITIATED };
         }
@@ -149,7 +142,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleDeleteTotp(user) {
+    async deleteTotp(user) {
         if (!user.totpEnabled && !user.totpPendingSetup) {
             return {
                 status: STATUS.FAILED,

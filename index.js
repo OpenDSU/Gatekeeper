@@ -48,11 +48,7 @@ module.exports = async function (server) {
 
     server.post(`${AUTH_API_PREFIX}/loginWithEmailCode`, auth.loginWithEmailCode);
 
-    server.post(`${AUTH_API_PREFIX}/generatePasskeyChallenge`, auth.generatePasskeyChallenge);
-
-    server.post(`${AUTH_API_PREFIX}/generatePasskeyRegistrationOptions`, auth.generatePasskeyRegistrationOptions);
-
-    server.post(`${AUTH_API_PREFIX}/generateAdditionalPasskeyOptions`, auth.generateAdditionalPasskeyOptions);
+    server.post(`${AUTH_API_PREFIX}/generatePasskeySetupOptions`, auth.generatePasskeySetupOptions);
 
     server.post(`${AUTH_API_PREFIX}/loginWithPasskey`, auth.loginWithPasskey);
 
@@ -62,7 +58,7 @@ module.exports = async function (server) {
 
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);
 
-    server.post(`${AUTH_API_PREFIX}/registerNewPasskey`, auth.registerNewPasskey);
+    server.post(`${AUTH_API_PREFIX}/addPasskey`, auth.addPasskey);
 
     server.delete(`${AUTH_API_PREFIX}/deletePasskey/:email/:credentialId`, auth.deletePasskey);
 

@@ -1,6 +1,6 @@
 const process = require("process");
-const {generateWalletKey, getLoginStrategy} = require("../utils/pluginUtils");
-const {AUTH_TYPES} = require("../constants/authConstants");
+const { generateWalletKey, getLoginStrategy } = require("../utils/pluginUtils");
+const { AUTH_TYPES } = require("../constants/authConstants");
 
 async function CreditManager() {
     let self = {};
@@ -59,7 +59,7 @@ async function CreditManager() {
             loginAttempts: 0,
             lastLoginAttempt: null
         };
-        await strategy.handleCreateUser(userPayload);
+        await strategy.createUser(userPayload);
 
         let user = await persistence.createUserLoginStatus(userPayload);
         return user;
@@ -110,7 +110,7 @@ async function CreditManager() {
     self.getTotalBalance = async function (id) {
         const balance = await self.balance(id);
         const lockedBalance = await self.lockedBalance(id);
-        return {balance, lockedBalance};
+        return { balance, lockedBalance };
     }
 
     self.balance = async function (id) {

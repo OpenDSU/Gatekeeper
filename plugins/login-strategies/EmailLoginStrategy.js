@@ -23,7 +23,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
         return code;
     }
 
-    async handleUserExists(user) {
+    async userExists(user) {
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
@@ -34,7 +34,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
         };
     }
 
-    async handleCreateUser(userPayload) {
+    async createUser(userPayload) {
         if (!userPayload.authTypes) {
             userPayload.authTypes = [AUTH_TYPES.EMAIL];
         } else if (!userPayload.authTypes.includes(AUTH_TYPES.EMAIL)) {
@@ -45,7 +45,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
         userPayload.validationEmailCodeTimestamp = new Date().toISOString();
     }
 
-    async handleAuthorizeUser(user, loginData) {
+    async verifyCredentials(user, loginData) {
         const code = loginData;
         let now = new Date().getTime();
 
@@ -69,7 +69,7 @@ class EmailUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleGetEmailCode(user) {
+    async getEmailCode(user) {
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }

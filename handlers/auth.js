@@ -170,48 +170,26 @@ const loginWithEmailCode = async function (req, res) {
     }
 }
 
-const generatePasskeyChallenge = async function (req, res) {
-    // This endpoint might not be needed if userExists already provides the challenge
-    // But keeping it for compatibility
-    res.writeHead(501, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: "Use /userExists endpoint to get passkey challenge" }));
-}
-
-const generatePasskeyRegistrationOptions = async function (req, res) {
-    let requestData = req.body;
-    let parsedData;
-    try {
-        parsedData = JSON.parse(requestData);
-        utils.validateEmail(parsedData.email);
-    } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        logger.debug(`Invalid data for generatePasskeyRegistrationOptions: ${e.message}`);
-        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+const generatePasskeySetupOptions = async (req, res) => {
+    if (!req.userId || !req.email) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: "Authentication required." }));
     }
 
-    const { email } = parsedData;
-    req.email = email;
+    const email = decodeURIComponent(req.email);
 
     try {
-        const userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
-
-        // Check if user already exists
-        const userExistsResponse = await userLoginClient.userExists(email);
-        if (userExistsResponse.userExists) {
-            res.writeHead(409, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: "User already exists" }));
-        }
-
-        // Generate registration options on server
+        // Generate registration options on server for passkey setup
         const crypto = require("crypto");
         const challenge = crypto.randomBytes(32);
-        const challengeKey = `register_challenge_${email}_${Date.now()}`;
+        const challengeKey = `passkey_setup_challenge_${email}_${Date.now()}`;
 
         // Store challenge temporarily (5 minutes)
         challengeCache.set(challengeKey, {
             challenge: challenge.toString('base64url'),
             email: email,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            type: 'setup'
         });
 
         // Clean up expired challenges
@@ -248,7 +226,7 @@ const generatePasskeyRegistrationOptions = async function (req, res) {
         }));
 
     } catch (e) {
-        logger.error(`Error during generatePasskeyRegistrationOptions for ${email}: ${e.message}`, e.stack);
+        logger.error(`Error during generatePasskeySetupOptions for ${email}: ${e.message}`, e.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
@@ -427,7 +405,7 @@ const setUserInfo = async (req, res) => {
     }
 }
 
-const registerNewPasskey = async (req, res) => {
+const addPasskey = async (req, res) => {
     if (!req.userId || !req.email) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: "Authentication required." }));
@@ -447,7 +425,7 @@ const registerNewPasskey = async (req, res) => {
         }
     } catch (e) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        logger.debug(`Invalid data for registerNewPasskey: ${e.message}`);
+        logger.debug(`Invalid data for addPasskey: ${e.message}`);
         return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
     }
 
@@ -460,7 +438,7 @@ const registerNewPasskey = async (req, res) => {
             return res.end(JSON.stringify({ error: "Invalid or expired registration challenge." }));
         }
 
-        if (challengeData.email !== email || challengeData.type !== 'additional') {
+        if (challengeData.email !== email || challengeData.type !== 'setup') {
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: "Challenge validation failed." }));
         }
@@ -469,7 +447,7 @@ const registerNewPasskey = async (req, res) => {
         challengeCache.delete(requestData.challengeKey);
 
         const client = await initAPIClient(req, constants.USER_PLUGIN);
-        let result = await client.registerNewPasskey(email, requestData.registrationData);
+        let result = await client.addPasskey(email, requestData.registrationData);
 
         if (result.status === STATUS.SUCCESS) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -481,71 +459,9 @@ const registerNewPasskey = async (req, res) => {
             logger.warn(`Failed to register new passkey for user ${email}: ${result.reason}`);
         }
     } catch (e) {
-        logger.error(`Error during registerNewPasskey for ${email}: ${e.message}`, e.stack);
+        logger.error(`Error during addPasskey for ${email}: ${e.message}`, e.stack);
         const statusCode = e.message.includes("already registered") ? 409 : 500;
         res.writeHead(statusCode, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
-    }
-}
-
-const generateAdditionalPasskeyOptions = async (req, res) => {
-    if (!req.userId || !req.email) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: "Authentication required." }));
-    }
-
-    const email = decodeURIComponent(req.email);
-
-    try {
-        // Generate registration options on server for additional passkey
-        const crypto = require("crypto");
-        const challenge = crypto.randomBytes(32);
-        const challengeKey = `additional_passkey_challenge_${email}_${Date.now()}`;
-
-        // Store challenge temporarily (5 minutes)
-        challengeCache.set(challengeKey, {
-            challenge: challenge.toString('base64url'),
-            email: email,
-            timestamp: Date.now(),
-            type: 'additional'
-        });
-
-        // Clean up expired challenges
-        setTimeout(() => challengeCache.delete(challengeKey), 5 * 60 * 1000);
-
-        const publicKeyCredentialCreationOptions = {
-            challenge: challenge.toString('base64url'),
-            rp: {
-                name: process.env.RP_NAME || "Outfinity Gift",
-                id: process.env.RP_ID,
-            },
-            user: {
-                id: Buffer.from(email).toString('base64url'),
-                name: email,
-                displayName: email,
-            },
-            pubKeyCredParams: [
-                { type: 'public-key', alg: -7 }, // ES256
-                { type: 'public-key', alg: -257 }, // RS256
-            ],
-            authenticatorSelection: {
-                requireResidentKey: false,
-                userVerification: 'required',
-            },
-            timeout: 60000,
-            attestation: 'direct'
-        };
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: "success",
-            publicKeyCredentialCreationOptions: JSON.stringify(publicKeyCredentialCreationOptions),
-            challengeKey: challengeKey
-        }));
-
-    } catch (e) {
-        logger.error(`Error during generateAdditionalPasskeyOptions for ${email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 }
@@ -854,15 +770,13 @@ module.exports = {
     userExists,
     sendCodeByEmail,
     loginWithEmailCode,
-    generatePasskeyChallenge,
-    generatePasskeyRegistrationOptions,
+    generatePasskeySetupOptions,
     loginWithPasskey,
     loginWithTotp,
     walletLogout,
     getUserInfo,
     setUserInfo,
-    registerNewPasskey,
-    generateAdditionalPasskeyOptions,
+    addPasskey,
     deletePasskey,
     registerTotp,
     verifyTotp,

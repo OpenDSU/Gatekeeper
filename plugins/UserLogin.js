@@ -7,6 +7,11 @@ const sessionCache = new Map();
 // Temporary cache for validation codes for non-existent users
 const tempCodeCache = new Map();
 
+// Cache for tracking registration attempts by email to prevent spam
+// This includes: email code generation for new users, user creation, 
+// passkey registration, and TOTP setup attempts
+const registrationAttemptCache = new Map();
+
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../constants/authConstants');
 const otpauth = require('../authenticator/totp/otpauth/index.cjs');
 
@@ -28,7 +33,7 @@ async function UserLogin() {
 
             const defaultAuthType = user.authTypes && user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL;
             const strategy = getLoginStrategy(defaultAuthType, persistence);
-            const strategyResult = await strategy.handleUserExists(user);
+            const strategyResult = await strategy.userExists(user);
 
             let finalAuthMetadata = { ...(strategyResult.authMetadata || {}) };
             finalAuthMetadata.totpEnabled = !!user.totpEnabled;
@@ -37,7 +42,7 @@ async function UserLogin() {
             // Get passkey challenge if user has passkeys
             if (user.passkeyCredentials && user.passkeyCredentials.length > 0 && defaultAuthType !== AUTH_TYPES.PASSKEY) {
                 const passkeyStrategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
-                const passkeyStrategyResult = await passkeyStrategy.handleUserExists(user);
+                const passkeyStrategyResult = await passkeyStrategy.userExists(user);
                 if (passkeyStrategyResult.authMetadata) {
                     if (passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions) {
                         finalAuthMetadata.publicKeyCredentialRequestOptions = passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions;
@@ -72,11 +77,23 @@ async function UserLogin() {
         };
     }
 
-    self.createUser = async function (email, name, referrerId, defaultAuthType, registrationData) {
+    self.createUser = async function (email, name, referrerId) {
+        // Check registration attempt rate limiting
+        const registrationCheck = checkRegistrationAttempts(email);
+        if (!registrationCheck.allowed) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                lockTime: registrationCheck.lockTime
+            };
+        }
+
         let walletKey = generateWalletKey();
         name = name || email.split("@")[0];
         let userAsset = await CreditManager.addUser(email, name, referrerId);
-        defaultAuthType = defaultAuthType || AUTH_TYPES.EMAIL;
+
+        // Users can ONLY register with email - other auth types can be added later
+        const defaultAuthType = AUTH_TYPES.EMAIL;
         const strategy = getLoginStrategy(defaultAuthType, persistence);
 
         let userPayload = {
@@ -94,13 +111,17 @@ async function UserLogin() {
             lastLoginAttempt: null
         };
 
-        await strategy.handleCreateUser(userPayload, registrationData);
+        await strategy.createUser(userPayload, null);
 
         let user = await persistence.createUserLoginStatus(userPayload);
         let sessionId = await createSessionForUser(user);
         user.sessionId = sessionId;
         user.status = STATUS.SUCCESS;
         user.globalUserId = userAsset.id;
+
+        // Track this registration attempt
+        incrementRegistrationAttempts(email);
+
         return user;
     }
 
@@ -126,7 +147,7 @@ async function UserLogin() {
                 // Code is valid, create the user now
                 try {
                     tempCodeCache.delete(email);
-                    let user = await self.createUser(email, tempData.name, tempData.referrerId, AUTH_TYPES.EMAIL, null);
+                    let user = await self.createUser(email, tempData.name, tempData.referrerId);
 
                     return {
                         status: STATUS.SUCCESS,
@@ -165,7 +186,7 @@ async function UserLogin() {
         let verificationResult;
 
         try {
-            verificationResult = await strategy.handleAuthorizeUser(user, code);
+            verificationResult = await strategy.verifyCredentials(user, code);
         } catch (e) {
             console.error(`Error during email code authorization:`, e);
             await incrementLoginAttempts(user.email);
@@ -221,7 +242,7 @@ async function UserLogin() {
         let verificationResult;
 
         try {
-            verificationResult = await strategy.handleAuthorizeUser(user, assertion, challengeKey);
+            verificationResult = await strategy.verifyCredentials(user, assertion, challengeKey);
         } catch (e) {
             console.error(`Error during passkey authorization:`, e);
             await incrementLoginAttempts(user.email);
@@ -277,7 +298,7 @@ async function UserLogin() {
         let verificationResult;
 
         try {
-            verificationResult = await strategy.handleAuthorizeUser(user, token);
+            verificationResult = await strategy.verifyCredentials(user, token);
         } catch (e) {
             console.error(`Error during TOTP authorization:`, e);
             await incrementLoginAttempts(user.email);
@@ -307,14 +328,24 @@ async function UserLogin() {
         }
     }
 
-    self.registerNewPasskey = async function (email, registrationData) {
+    self.addPasskey = async function (email, registrationData) {
         let user = await persistence.getUserLoginStatus(email);
         if (!user) {
             throw new Error(ERROR_REASONS.USER_NOT_EXISTS);
         }
 
+        // Check registration attempt rate limiting for additional passkeys
+        const registrationCheck = checkRegistrationAttempts(email);
+        if (!registrationCheck.allowed) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                lockTime: registrationCheck.lockTime
+            };
+        }
+
         const strategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
-        if (!strategy || typeof strategy.handleRegisterNewPasskey !== 'function') {
+        if (!strategy || typeof strategy.addPasskey !== 'function') {
             throw new Error("Passkey strategy not available or invalid.");
         }
 
@@ -327,16 +358,23 @@ async function UserLogin() {
         }
 
         try {
-            const result = await strategy.handleRegisterNewPasskey(user, registrationData);
+            const result = await strategy.addPasskey(user, registrationData);
 
             if (!user.authTypes.includes(AUTH_TYPES.PASSKEY)) {
                 user.authTypes.push(AUTH_TYPES.PASSKEY);
                 await persistence.updateUserLoginStatus(user.id, user);
             }
 
+            // Track this registration attempt only if successful
+            if (result.status === STATUS.SUCCESS) {
+                incrementRegistrationAttempts(email);
+            }
+
             return result;
         } catch (e) {
-            console.error("Error during registerNewPasskey handling:", e);
+            console.error("Error during addPasskey handling:", e);
+            // Track failed registration attempt
+            incrementRegistrationAttempts(email);
             throw e;
         }
     }
@@ -364,16 +402,19 @@ async function UserLogin() {
         let user;
 
         if (!userExists) {
-            // Generate a validation code and store it temporarily without creating the user
-            const crypto = require("crypto");
-            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-            const bytes = crypto.randomBytes(5);
-            let code = '';
-
-            for (let i = 0; i < 5; i++) {
-                const randomIndex = bytes[i] % chars.length;
-                code += chars[randomIndex];
+            // Check registration attempt rate limiting for non-existing users
+            const registrationCheck = checkRegistrationAttempts(email);
+            if (!registrationCheck.allowed) {
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                    lockTime: registrationCheck.lockTime
+                };
             }
+
+            // Generate a validation code and store it temporarily without creating the user
+            const emailStrategy = getLoginStrategy(AUTH_TYPES.EMAIL, persistence);
+            const code = emailStrategy.generateValidationCode(5);
 
             const timestamp = new Date().toISOString();
             const tempData = {
@@ -386,6 +427,9 @@ async function UserLogin() {
             // Store in temporary cache with expiry
             tempCodeCache.set(email, tempData);
             setTimeout(() => tempCodeCache.delete(email), expiryTimeout);
+
+            // Track this registration attempt
+            incrementRegistrationAttempts(email);
 
             return {
                 status: STATUS.SUCCESS,
@@ -414,7 +458,7 @@ async function UserLogin() {
 
         const strategy = getLoginStrategy(AUTH_TYPES.EMAIL, persistence);
 
-        return await strategy.handleGetEmailCode(user);
+        return await strategy.getEmailCode(user);
     };
 
     self.checkSessionId = async function (sessionId) {
@@ -506,12 +550,12 @@ async function UserLogin() {
         }
 
         const strategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
-        if (!strategy || typeof strategy.handleDeletePasskey !== 'function') {
+        if (!strategy || typeof strategy.deletePasskey !== 'function') {
             throw new Error("Passkey strategy not available or invalid.");
         }
 
         try {
-            return await strategy.handleDeletePasskey(user, credentialId);
+            return await strategy.deletePasskey(user, credentialId);
         } catch (e) {
             console.error(`Error deleting passkey for ${email}:`, e);
             return { status: STATUS.FAILED, reason: `Failed to delete passkey: ${e.message}` };
@@ -531,12 +575,12 @@ async function UserLogin() {
         }
 
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
-        if (!strategy || typeof strategy.handleDeleteTotp !== 'function') {
+        if (!strategy || typeof strategy.deleteTotp !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
 
         try {
-            return await strategy.handleDeleteTotp(user);
+            return await strategy.deleteTotp(user);
         } catch (e) {
             console.error(`Error deleting TOTP for ${email}:`, e);
             return { status: STATUS.FAILED, reason: `Failed to delete TOTP: ${e.message}` };
@@ -580,6 +624,55 @@ async function UserLogin() {
         }
     }
 
+    const incrementRegistrationAttempts = function (email) {
+        // Track registration attempts by email to prevent spam registrations
+        // This is used for: email code generation for new users, user creation,
+        // passkey registration, and TOTP setup attempts
+        const now = new Date().getTime();
+        const attempts = registrationAttemptCache.get(email) || { count: 0, lastAttempt: null };
+
+        // Reset if outside timeout window
+        if (attempts.lastAttempt && now - attempts.lastAttempt > expiryTimeout) {
+            attempts.count = 0;
+        }
+
+        attempts.count += 1;
+        attempts.lastAttempt = now;
+        registrationAttemptCache.set(email, attempts);
+
+        // Clean up old entries
+        setTimeout(() => {
+            const currentAttempts = registrationAttemptCache.get(email);
+            if (currentAttempts && now - currentAttempts.lastAttempt > expiryTimeout) {
+                registrationAttemptCache.delete(email);
+            }
+        }, expiryTimeout);
+    }
+
+    const checkRegistrationAttempts = function (email) {
+        // Check if email has exceeded registration attempt limits
+        // Returns {allowed: boolean, lockTime: number}
+        const now = new Date().getTime();
+        const attempts = registrationAttemptCache.get(email);
+
+        if (!attempts) {
+            return { allowed: true, lockTime: 0 };
+        }
+
+        // Reset if outside timeout window
+        if (attempts.lastAttempt && now - attempts.lastAttempt > expiryTimeout) {
+            registrationAttemptCache.delete(email);
+            return { allowed: true, lockTime: 0 };
+        }
+
+        if (attempts.count >= maxLoginAttempts) {
+            const lockTime = attempts.lastAttempt + expiryTimeout - now;
+            return { allowed: false, lockTime: lockTime };
+        }
+
+        return { allowed: true, lockTime: 0 };
+    }
+
     self.shutDown = async function () {
         await persistence.shutDown();
         return { status: STATUS.SUCCESS };
@@ -592,6 +685,16 @@ async function UserLogin() {
         }
 
         let user = await persistence.getUserLoginStatus(email);
+
+        // Check registration attempt rate limiting for TOTP setup
+        const registrationCheck = checkRegistrationAttempts(email);
+        if (!registrationCheck.allowed) {
+            return {
+                status: STATUS.FAILED,
+                reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                lockTime: registrationCheck.lockTime
+            };
+        }
 
         // Generate a new TOTP secret
         const secret = new otpauth.Secret();
@@ -608,12 +711,16 @@ async function UserLogin() {
 
         // Store the secret using the strategy
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
-        if (!strategy || typeof strategy.handleSetTotpSecret !== 'function') {
+        if (!strategy || typeof strategy.setTotpSecret !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
 
         try {
-            await strategy.handleSetTotpSecret(user, secret.base32);
+            await strategy.setTotpSecret(user, secret.base32);
+
+            // Track this registration attempt
+            incrementRegistrationAttempts(email);
+
             return {
                 status: STATUS.SUCCESS,
                 uri: uri,
@@ -621,6 +728,8 @@ async function UserLogin() {
             };
         } catch (e) {
             console.error(`Error setting TOTP secret for ${email}:`, e);
+            // Track failed registration attempt
+            incrementRegistrationAttempts(email);
             return { status: STATUS.FAILED, reason: `Failed to set TOTP secret: ${e.message}` };
         }
     }
@@ -632,6 +741,20 @@ async function UserLogin() {
         }
         let user = await persistence.getUserLoginStatus(email);
 
+        // Check login attempts for TOTP verification to prevent brute force
+        let now = new Date().getTime();
+        if (user.loginAttempts >= maxLoginAttempts) {
+            if (user.lastLoginAttempt && now < user.lastLoginAttempt + expiryTimeout) {
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                    lockTime: user.lastLoginAttempt + expiryTimeout - now
+                };
+            } else {
+                user = await resetLoginAttempts(email);
+            }
+        }
+
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
@@ -641,23 +764,30 @@ async function UserLogin() {
         }
 
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
-        if (!strategy || typeof strategy.handleVerifyAndEnableTotp !== 'function') {
+        if (!strategy || typeof strategy.verifyAndEnableTotp !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
 
         try {
-            const result = await strategy.handleVerifyAndEnableTotp(user, token);
+            const result = await strategy.verifyAndEnableTotp(user, token);
             if (result.verified) {
+                // Reset login attempts on successful verification
+                user = await resetLoginAttempts(email);
+
                 if (!user.authTypes.includes(AUTH_TYPES.TOTP)) {
                     user.authTypes.push(AUTH_TYPES.TOTP);
                     await persistence.updateUserLoginStatus(user.id, user);
                 }
                 return { status: STATUS.SUCCESS };
             } else {
+                // Increment login attempts on failed verification
+                await incrementLoginAttempts(email);
                 return { status: STATUS.FAILED, reason: result.reason || ERROR_REASONS.INVALID_TOTP_CODE };
             }
         } catch (e) {
             console.error(`Error verifying/enabling TOTP for ${email}:`, e);
+            // Increment login attempts on error
+            await incrementLoginAttempts(email);
             return { status: STATUS.FAILED, reason: `Verification error: ${e.message}` };
         }
     }
@@ -705,7 +835,7 @@ module.exports = {
                 case "setUserInfo":
                 case "loginWithPasskey":
                 case "loginWithTotp":
-                case "registerNewPasskey":
+                case "addPasskey":
                 case "verifyAndEnableTotp":
                 case "setupTotp":
                     user = await singletonInstance.persistence.getUserLoginStatus(args[0]);

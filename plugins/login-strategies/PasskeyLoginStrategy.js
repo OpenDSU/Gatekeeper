@@ -33,7 +33,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         return authenticatorNameMap[aaguidFormatted] || 'Unknown Authenticator';
     }
 
-    async handleUserExists(user) {
+    async userExists(user) {
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
@@ -77,7 +77,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleCreateUser(userPayload, registrationData) {
+    async createUser(userPayload, registrationData) {
         if (!registrationData) {
             throw new Error("Missing registration data for passkey user creation.");
         }
@@ -139,7 +139,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleAuthorizeUser(user, loginData, challengeKey) {
+    async verifyCredentials(user, loginData, challengeKey) {
         const assertion = loginData;
 
         if (!user.authTypes) {
@@ -203,15 +203,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleGetEmailCode(user) {
-        return {
-            status: STATUS.FAILED,
-            reason: ERROR_REASONS.ACCOUNT_USES_PASSKEY,
-            authTypes: user.authTypes || [AUTH_TYPES.PASSKEY]
-        };
-    }
-
-    async handleRegisterNewPasskey(user, registrationData) {
+    async addPasskey(user, registrationData) {
         if (!registrationData) {
             return {
                 status: STATUS.FAILED,
@@ -279,7 +271,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
-    async handleDeletePasskey(user, credentialId) {
+    async deletePasskey(user, credentialId) {
         if (!user.passkeyCredentials || user.passkeyCredentials.length === 0) {
             return {
                 status: STATUS.FAILED,
