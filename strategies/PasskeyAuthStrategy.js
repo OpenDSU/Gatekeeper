@@ -8,7 +8,8 @@ class PasskeyAuthStrategy extends BaseAuthStrategy {
     }
 
 
-    getAuthMetadata(userResponse) {
+    // eslint-disable-next-line no-unused-vars
+    getAuthMetadata(_userResponse) {
         // The core passkey metadata (publicKeyCredentialRequestOptions, challengeKey)
         // is now expected to be populated by UserLogin.userExists itself and placed into its returned authMetadata.
         // This method is for any *additional* metadata this specific strategy instance might want to layer on top
@@ -18,24 +19,6 @@ class PasskeyAuthStrategy extends BaseAuthStrategy {
         // If there was a need to, for example, add a flag like `passkeyStrategyIsActiveContext: true`,
         // this would be the place.
         return metadata;
-    }
-
-    async generateAuthData(data) {
-        const { email, name, referrerId, registrationData } = data;
-
-        if (!registrationData) {
-            throw new Error("Missing registrationData for passkey signup.");
-        }
-
-        const result = await this.userLogin.createUser(email, name, referrerId, AUTH_TYPES.PASSKEY, registrationData);
-
-        if (result.status === STATUS.SUCCESS) {
-            result.message = "Passkey registration successful.";
-            result.userId = result.globalUserId;
-            return result;
-        } else {
-            throw new Error(result.reason || "Failed to register passkey");
-        }
     }
 
     async login(loginData) {

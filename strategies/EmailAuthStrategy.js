@@ -16,9 +16,9 @@ class EmailAuthStrategy extends BaseAuthStrategy {
         return {};
     }
 
-    async generateAuthData(data) {
+    async sendRegistrationOrLoginCode(data) {
         const { email, name, referrerId } = data;
-        const result = await this.userLogin.getUserValidationEmailCode(email, name, referrerId);
+        const result = await this.userLogin.getEmailCode(email, name, referrerId);
 
         if (result.status === STATUS.SUCCESS) {
             let responseMessage = { status: STATUS.SUCCESS };

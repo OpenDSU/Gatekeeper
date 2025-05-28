@@ -87,7 +87,7 @@ class TotpAuthStrategy extends BaseAuthStrategy {
         }
     }
 
-    async setupTotp(email) {
+    async initiateTotpSetup(email) {
         const secret = new otpauth.Secret();
 
         const totp = new otpauth.TOTP({
@@ -114,7 +114,7 @@ class TotpAuthStrategy extends BaseAuthStrategy {
         }
     }
 
-    async verifyAndEnableTotp(email, token) {
+    async confirmTotpSetup(email, token) {
         const result = await this.userLogin.verifyAndEnableTotp(email, token);
 
         if (result.status === STATUS.SUCCESS) {

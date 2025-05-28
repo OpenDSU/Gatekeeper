@@ -4,9 +4,11 @@ const maxLoginAttempts = 5;
 
 const sessionCache = new Map();
 
+// Temporary cache for validation codes for non-existent users
+const tempCodeCache = new Map();
 
 const { AUTH_TYPES, STATUS, ERROR_REASONS } = require('../constants/authConstants');
-
+const otpauth = require('../authenticator/totp/otpauth/index.cjs');
 
 async function UserLogin() {
     let self = {};
@@ -25,13 +27,14 @@ async function UserLogin() {
             }
 
             const defaultAuthType = user.authTypes && user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL;
-            const primaryStrategy = getLoginStrategy(defaultAuthType, persistence);
-            const primaryStrategyResult = await primaryStrategy.handleUserExists(user);
+            const strategy = getLoginStrategy(defaultAuthType, persistence);
+            const strategyResult = await strategy.handleUserExists(user);
 
-            let finalAuthMetadata = { ...(primaryStrategyResult.authMetadata || {}) };
+            let finalAuthMetadata = { ...(strategyResult.authMetadata || {}) };
             finalAuthMetadata.totpEnabled = !!user.totpEnabled;
             finalAuthMetadata.totpPendingSetup = !!user.totpPendingSetup;
 
+            // Get passkey challenge if user has passkeys
             if (user.passkeyCredentials && user.passkeyCredentials.length > 0 && defaultAuthType !== AUTH_TYPES.PASSKEY) {
                 const passkeyStrategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
                 const passkeyStrategyResult = await passkeyStrategy.handleUserExists(user);
@@ -45,18 +48,18 @@ async function UserLogin() {
                 }
             }
 
-            if (primaryStrategyResult.authMetadata?.publicKeyCredentialRequestOptions) {
-                finalAuthMetadata.publicKeyCredentialRequestOptions = primaryStrategyResult.authMetadata.publicKeyCredentialRequestOptions;
+            if (strategyResult.authMetadata?.publicKeyCredentialRequestOptions) {
+                finalAuthMetadata.publicKeyCredentialRequestOptions = strategyResult.authMetadata.publicKeyCredentialRequestOptions;
             }
-            if (primaryStrategyResult.authMetadata?.challengeKey) {
-                finalAuthMetadata.challengeKey = primaryStrategyResult.authMetadata.challengeKey;
+            if (strategyResult.authMetadata?.challengeKey) {
+                finalAuthMetadata.challengeKey = strategyResult.authMetadata.challengeKey;
             }
 
             return {
                 status: STATUS.SUCCESS,
                 userExists: true,
                 authTypes: user.authTypes || [AUTH_TYPES.EMAIL],
-                activeAuthType: primaryStrategyResult.activeAuthType || defaultAuthType,
+                activeAuthType: strategyResult.activeAuthType || defaultAuthType,
                 authMetadata: finalAuthMetadata
             };
         }
@@ -99,6 +102,209 @@ async function UserLogin() {
         user.status = STATUS.SUCCESS;
         user.globalUserId = userAsset.id;
         return user;
+    }
+
+    // Dedicated login method for email code
+    self.loginWithEmailCode = async function (email, code) {
+        let userExists = await persistence.hasUserLoginStatus(email);
+
+        if (!userExists) {
+            // Check if there's a temporary code for this email
+            const tempData = tempCodeCache.get(email);
+            if (!tempData) {
+                return { status: STATUS.FAILED, reason: ERROR_REASONS.ACCOUNT_NOT_EXISTS };
+            }
+
+            // Validate the temporary code
+            let now = new Date().getTime();
+            if (tempData.code === code) {
+                if (now - new Date(tempData.timestamp).getTime() > expiryTimeout) {
+                    tempCodeCache.delete(email);
+                    return { status: STATUS.FAILED, reason: ERROR_REASONS.CODE_EXPIRED };
+                }
+
+                // Code is valid, create the user now
+                try {
+                    tempCodeCache.delete(email);
+                    let user = await self.createUser(email, tempData.name, tempData.referrerId, AUTH_TYPES.EMAIL, null);
+
+                    return {
+                        status: STATUS.SUCCESS,
+                        sessionId: user.sessionId,
+                        email: email,
+                        walletKey: user.walletKey,
+                        userInfo: user.userInfo,
+                        userId: user.globalUserId
+                    };
+                } catch (e) {
+                    console.error(`Error creating user after email validation:`, e);
+                    return { status: STATUS.FAILED, reason: `User creation error: ${e.message}` };
+                }
+            } else {
+                return { status: STATUS.FAILED, reason: ERROR_REASONS.INVALID_CODE };
+            }
+        }
+
+        // User exists - handle normally with login attempts tracking
+        let user = await persistence.getUserLoginStatus(email);
+        let now = new Date().getTime();
+
+        if (user.loginAttempts >= maxLoginAttempts) {
+            if (user.lastLoginAttempt && now < user.lastLoginAttempt + expiryTimeout) {
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                    lockTime: user.lastLoginAttempt + expiryTimeout - now
+                };
+            } else {
+                user = await resetLoginAttempts(email);
+            }
+        }
+
+        const strategy = getLoginStrategy(AUTH_TYPES.EMAIL, persistence);
+        let verificationResult;
+
+        try {
+            verificationResult = await strategy.handleAuthorizeUser(user, code);
+        } catch (e) {
+            console.error(`Error during email code authorization:`, e);
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: `Authorization error: ${e.message}` };
+        }
+
+        if (verificationResult.verified) {
+            user = await resetLoginAttempts(user.email);
+
+            if (verificationResult.update && typeof verificationResult.update === 'object') {
+                Object.assign(user, verificationResult.update);
+                await persistence.updateUserLoginStatus(user.id, user);
+            }
+            let sessionId = await createSessionForUser(user);
+
+            return {
+                status: STATUS.SUCCESS,
+                sessionId: sessionId,
+                email: email,
+                walletKey: user.walletKey,
+                userInfo: user.userInfo,
+                userId: user.globalUserId
+            };
+        } else {
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: verificationResult.reason || ERROR_REASONS.INVALID_CREDENTIALS };
+        }
+    }
+
+    // Dedicated login method for passkey
+    self.loginWithPasskey = async function (email, assertion, challengeKey) {
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.ACCOUNT_NOT_EXISTS };
+        }
+
+        let user = await persistence.getUserLoginStatus(email);
+        let now = new Date().getTime();
+
+        if (user.loginAttempts >= maxLoginAttempts) {
+            if (user.lastLoginAttempt && now < user.lastLoginAttempt + expiryTimeout) {
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                    lockTime: user.lastLoginAttempt + expiryTimeout - now
+                };
+            } else {
+                user = await resetLoginAttempts(email);
+            }
+        }
+
+        const strategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
+        let verificationResult;
+
+        try {
+            verificationResult = await strategy.handleAuthorizeUser(user, assertion, challengeKey);
+        } catch (e) {
+            console.error(`Error during passkey authorization:`, e);
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: `Authorization error: ${e.message}` };
+        }
+
+        if (verificationResult.verified) {
+            user = await resetLoginAttempts(user.email);
+
+            if (verificationResult.update && typeof verificationResult.update === 'object') {
+                Object.assign(user, verificationResult.update);
+                await persistence.updateUserLoginStatus(user.id, user);
+            }
+            let sessionId = await createSessionForUser(user);
+
+            return {
+                status: STATUS.SUCCESS,
+                sessionId: sessionId,
+                email: email,
+                walletKey: user.walletKey,
+                userInfo: user.userInfo,
+                userId: user.globalUserId
+            };
+        } else {
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: verificationResult.reason || ERROR_REASONS.INVALID_CREDENTIALS };
+        }
+    }
+
+    // Dedicated login method for TOTP
+    self.loginWithTotp = async function (email, token) {
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.ACCOUNT_NOT_EXISTS };
+        }
+
+        let user = await persistence.getUserLoginStatus(email);
+        let now = new Date().getTime();
+
+        if (user.loginAttempts >= maxLoginAttempts) {
+            if (user.lastLoginAttempt && now < user.lastLoginAttempt + expiryTimeout) {
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                    lockTime: user.lastLoginAttempt + expiryTimeout - now
+                };
+            } else {
+                user = await resetLoginAttempts(email);
+            }
+        }
+
+        const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
+        let verificationResult;
+
+        try {
+            verificationResult = await strategy.handleAuthorizeUser(user, token);
+        } catch (e) {
+            console.error(`Error during TOTP authorization:`, e);
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: `Authorization error: ${e.message}` };
+        }
+
+        if (verificationResult.verified) {
+            user = await resetLoginAttempts(user.email);
+
+            if (verificationResult.update && typeof verificationResult.update === 'object') {
+                Object.assign(user, verificationResult.update);
+                await persistence.updateUserLoginStatus(user.id, user);
+            }
+            let sessionId = await createSessionForUser(user);
+
+            return {
+                status: STATUS.SUCCESS,
+                sessionId: sessionId,
+                email: email,
+                walletKey: user.walletKey,
+                userInfo: user.userInfo,
+                userId: user.globalUserId
+            };
+        } else {
+            await incrementLoginAttempts(user.email);
+            return { status: STATUS.FAILED, reason: verificationResult.reason || ERROR_REASONS.INVALID_CREDENTIALS };
+        }
     }
 
     self.registerNewPasskey = async function (email, registrationData) {
@@ -150,79 +356,7 @@ async function UserLogin() {
             sessionId: sessionId
         });
 
-        console.log("DEBUG----------: sessionCache", sessionCache);
         return sessionId;
-    }
-
-    self.authorizeUser = async function (email, loginData, challengeKey, loginMethod = "") {
-        let userExists = await persistence.hasUserLoginStatus(email);
-        if (!userExists) {
-            return { status: STATUS.FAILED, reason: ERROR_REASONS.ACCOUNT_NOT_EXISTS };
-        }
-        let user = await persistence.getUserLoginStatus(email);
-        let now = new Date().getTime();
-
-        if (user.loginAttempts >= maxLoginAttempts) {
-            if (user.lastLoginAttempt && now < user.lastLoginAttempt + expiryTimeout) {
-                return {
-                    status: STATUS.FAILED,
-                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
-                    lockTime: user.lastLoginAttempt + expiryTimeout - now
-                };
-            } else {
-                user = await resetLoginAttempts(email);
-            }
-        }
-
-        if (!user.authTypes) {
-            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
-        }
-
-        if (!user.authTypes.includes(AUTH_TYPES.EMAIL)) {
-            user.authTypes.push(AUTH_TYPES.EMAIL);
-            await persistence.updateUserLoginStatus(user.id, user);
-        }
-
-        if (loginMethod && !user.authTypes.includes(loginMethod)) {
-            return {
-                status: STATUS.FAILED,
-                reason: ERROR_REASONS.AUTH_METHOD_NOT_AVAILABLE
-            };
-        }
-
-        const authMethodToUse = loginMethod || (user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL);
-        const strategy = getLoginStrategy(authMethodToUse, persistence);
-
-        let verificationResult;
-        try {
-            verificationResult = await strategy.handleAuthorizeUser(user, loginData, challengeKey);
-        } catch (e) {
-            console.error(`Error during ${authMethodToUse} authorization strategy:`, e);
-            await incrementLoginAttempts(user.email);
-            return { status: STATUS.FAILED, reason: `Authorization error: ${e.message}` };
-        }
-
-        if (verificationResult.verified) {
-            user = await resetLoginAttempts(user.email);
-
-            if (verificationResult.update && typeof verificationResult.update === 'object') {
-                Object.assign(user, verificationResult.update);
-                await persistence.updateUserLoginStatus(user.id, user);
-            }
-            let sessionId = await createSessionForUser(user);
-
-            return {
-                status: STATUS.SUCCESS,
-                sessionId: sessionId,
-                email: email,
-                walletKey: user.walletKey,
-                userInfo: user.userInfo,
-                userId: user.globalUserId
-            };
-        } else {
-            await incrementLoginAttempts(user.email);
-            return { status: STATUS.FAILED, reason: verificationResult.reason || ERROR_REASONS.INVALID_CREDENTIALS };
-        }
     }
 
     self.getUserValidationEmailCode = async function (email, name, referrerId) {
@@ -230,14 +364,33 @@ async function UserLogin() {
         let user;
 
         if (!userExists) {
-            user = await self.createUser(email, name, referrerId, AUTH_TYPES.EMAIL, null);
+            // Generate a validation code and store it temporarily without creating the user
+            const crypto = require("crypto");
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            const bytes = crypto.randomBytes(5);
+            let code = '';
+
+            for (let i = 0; i < 5; i++) {
+                const randomIndex = bytes[i] % chars.length;
+                code += chars[randomIndex];
+            }
+
+            const timestamp = new Date().toISOString();
+            const tempData = {
+                code: code,
+                timestamp: timestamp,
+                name: name,
+                referrerId: referrerId
+            };
+
+            // Store in temporary cache with expiry
+            tempCodeCache.set(email, tempData);
+            setTimeout(() => tempCodeCache.delete(email), expiryTimeout);
+
             return {
-                userId: user.globalUserId,
                 status: STATUS.SUCCESS,
-                code: user.validationEmailCode,
-                walletKey: user.walletKey,
-                authTypes: user.authTypes || [AUTH_TYPES.EMAIL],
-                sessionId: user.sessionId
+                code: code,
+                authTypes: [AUTH_TYPES.EMAIL]
             };
         }
 
@@ -261,7 +414,7 @@ async function UserLogin() {
 
         const strategy = getLoginStrategy(AUTH_TYPES.EMAIL, persistence);
 
-        return await strategy.handleGetUserValidationCode(user);
+        return await strategy.handleGetEmailCode(user);
     };
 
     self.checkSessionId = async function (sessionId) {
@@ -274,7 +427,6 @@ async function UserLogin() {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.SESSION_NOT_EXISTS };
         }
         let session = await persistence.getSession(sessionId);
-        console.log("DEBUG----------: session", session);
         let userExists = await persistence.hasUserLoginStatus(session.userLoginId);
         if (!userExists) {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_SESSION_NOT_EXISTS };
@@ -433,24 +585,40 @@ async function UserLogin() {
         return { status: STATUS.SUCCESS };
     }
 
-    self.setTotpSecret = async function (email, secret) {
+    self.setupTotp = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
+
         let user = await persistence.getUserLoginStatus(email);
 
-        if (!user.authTypes) {
-            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
-        }
+        // Generate a new TOTP secret
+        const secret = new otpauth.Secret();
+        const totp = new otpauth.TOTP({
+            issuer: process.env.APP_NAME || 'MyApp',
+            label: email,
+            algorithm: 'SHA1',
+            digits: 6,
+            period: 30,
+            secret: secret
+        });
 
+        const uri = totp.toString();
+
+        // Store the secret using the strategy
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
         if (!strategy || typeof strategy.handleSetTotpSecret !== 'function') {
             throw new Error("TOTP strategy not available or invalid.");
         }
+
         try {
-            await strategy.handleSetTotpSecret(user, secret);
-            return { status: STATUS.SUCCESS };
+            await strategy.handleSetTotpSecret(user, secret.base32);
+            return {
+                status: STATUS.SUCCESS,
+                uri: uri,
+                secret: secret.base32
+            };
         } catch (e) {
             console.error(`Error setting TOTP secret for ${email}:`, e);
             return { status: STATUS.FAILED, reason: `Failed to set TOTP secret: ${e.message}` };
@@ -519,6 +687,7 @@ module.exports = {
                     return true;
                 case "userExists":
                 case "checkSessionId":
+                case "loginWithEmailCode":
                 case "logout":
                     return true;
                 case "getUserInfo":
@@ -534,19 +703,17 @@ module.exports = {
                 case "deletePasskey":
                 case "deleteTotp":
                 case "setUserInfo":
-                case "authorizeUser":
+                case "loginWithPasskey":
+                case "loginWithTotp":
                 case "registerNewPasskey":
                 case "verifyAndEnableTotp":
-                case "setTotpSecret":
-                    console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
+                case "setupTotp":
                     user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
-                    console.log("DEBUG----------: user", user);
                     if (user && user.globalUserId === globalUserId) {
                         return true;
                     }
                     return false;
                 case "getUserValidationEmailCode":
-                    console.log("DEBUG----------: globalUserId", globalUserId, "email", email, "command", command);
                     userExists = await singletonInstance.persistence.hasUserLoginStatus(args[0]);
                     if (!userExists) {
                         return true;

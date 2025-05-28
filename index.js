@@ -2,9 +2,10 @@ const path = require("path");
 const auth = require("./handlers/auth");
 const process = require("process");
 const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
-const {authenticationMiddleware, bodyReader, securityMiddleware} = require("./middlewares");
-const {getCookies} = require("./utils/apiUtils");
+const { authenticationMiddleware, bodyReader, securityMiddleware } = require("./middlewares");
+const { getCookies } = require("./utils/apiUtils");
 const constants = require("./utils/constants");
+
 module.exports = async function (server) {
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
     if (!process.env.SERVERLESS_STORAGE) {
@@ -36,13 +37,14 @@ module.exports = async function (server) {
         req.email = cookies['email'] ? decodeURIComponent(cookies['email']) : undefined;
         next();
     });
+
     server.get(`${AUTH_API_PREFIX}/userExists/:email`, auth.userExists);
 
     server.get(`${AUTH_API_PREFIX}/getInfo`, auth.getUserInfo);
 
     server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
-    server.post(`${AUTH_API_PREFIX}/register`, auth.register);
+    server.post(`${AUTH_API_PREFIX}/generateAuthCode`, auth.generateAuthCode);
 
     server.post(`${AUTH_API_PREFIX}/sendCodeByEmail`, auth.sendCodeByEmail);
 
@@ -53,7 +55,7 @@ module.exports = async function (server) {
     server.post(`${AUTH_API_PREFIX}/loginWithPasskey`, auth.loginWithPasskey);
 
     server.post(`${AUTH_API_PREFIX}/loginWithTotp`, auth.loginWithTotp);
-    
+
     server.post(`${AUTH_API_PREFIX}/logout`, auth.walletLogout);
 
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);
@@ -71,8 +73,8 @@ module.exports = async function (server) {
     server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
 
     server.get(`${AUTH_API_PREFIX}/passKeyConfig`, async (req, res) => {
-        let config = {rp_id: process.env.RP_ID, app_name: process.env.APP_NAME}
-        res.writeHead(200, {'Content-Type': 'application/json'});
+        let config = { rp_id: process.env.RP_ID, app_name: process.env.APP_NAME }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(config));
     })
 }
