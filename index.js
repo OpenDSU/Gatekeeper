@@ -54,7 +54,7 @@ module.exports = async function (server) {
 
     server.post(`${AUTH_API_PREFIX}/loginWithTotp`, auth.loginWithTotp);
 
-    server.post(`${AUTH_API_PREFIX}/logout`, auth.walletLogout);
+    server.post(`${AUTH_API_PREFIX}/logout`, auth.logout);
 
     server.put(`${AUTH_API_PREFIX}/setInfo`, auth.setUserInfo);
 
@@ -64,9 +64,9 @@ module.exports = async function (server) {
 
     server.delete(`${AUTH_API_PREFIX}/deleteTotp/:email`, auth.deleteTotp);
 
-    server.post(`${AUTH_API_PREFIX}/registerTotp`, auth.registerTotp);
+    server.post(`${AUTH_API_PREFIX}/setupTotp`, auth.setupTotp);
 
-    server.post(`${AUTH_API_PREFIX}/verifyTotp`, auth.verifyTotp);
+    server.post(`${AUTH_API_PREFIX}/enableTotp`, auth.enableTotp);
 
     server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
 

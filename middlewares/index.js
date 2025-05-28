@@ -14,7 +14,7 @@ async function authenticationMiddleware(req, res, next) {
         return next();
     }
 
-    const skipCommands = ["loginWithEmailCode"];
+    const skipCommands = ["loginWithEmailCode", "loginWithPasskey", "loginWithTotp"];
     // check if the body.name contains any of the skipCommands
     if (req.body) {
         let parsedBody = JSON.parse(req.body);

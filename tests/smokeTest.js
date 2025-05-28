@@ -33,12 +33,12 @@ async function smokeTest() {
             throw new Error("SessionId check failed");
         }
 
-        let logoutResult = await UserLogin.logout(email);
+        let logoutResult = await UserLogin.logout(authResult.sessionId);
         if (logoutResult.status === "failed") {
             throw new Error("Logout failed");
         }
         console.log("User logged out");
-        let result = await UserLogin.checkSessionId(email, "");
+        let result = await UserLogin.checkSessionId(authResult.sessionId);
         if (result.status === "success") {
             throw new Error("SessionId check after logout should have failed");
         }

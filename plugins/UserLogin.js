@@ -130,9 +130,21 @@ async function UserLogin() {
         let userExists = await persistence.hasUserLoginStatus(email);
 
         if (!userExists) {
+            // Check registration attempt rate limiting for validation attempts
+            const registrationCheck = checkRegistrationAttempts(email);
+            if (!registrationCheck.allowed) {
+                return {
+                    status: STATUS.FAILED,
+                    reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
+                    lockTime: registrationCheck.lockTime
+                };
+            }
+
             // Check if there's a temporary code for this email
             const tempData = tempCodeCache.get(email);
             if (!tempData) {
+                // Track failed validation attempt
+                incrementRegistrationAttempts(email);
                 return { status: STATUS.FAILED, reason: ERROR_REASONS.ACCOUNT_NOT_EXISTS };
             }
 
@@ -141,6 +153,8 @@ async function UserLogin() {
             if (tempData.code === code) {
                 if (now - new Date(tempData.timestamp).getTime() > expiryTimeout) {
                     tempCodeCache.delete(email);
+                    // Track failed validation attempt (expired code)
+                    incrementRegistrationAttempts(email);
                     return { status: STATUS.FAILED, reason: ERROR_REASONS.CODE_EXPIRED };
                 }
 
@@ -162,6 +176,8 @@ async function UserLogin() {
                     return { status: STATUS.FAILED, reason: `User creation error: ${e.message}` };
                 }
             } else {
+                // Track failed validation attempt (wrong code)
+                incrementRegistrationAttempts(email);
                 return { status: STATUS.FAILED, reason: ERROR_REASONS.INVALID_CODE };
             }
         }

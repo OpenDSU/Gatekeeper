@@ -322,7 +322,7 @@ const loginWithTotp = async function (req, res) {
 
 // Removed walletLogin - we now have dedicated login endpoints for each auth type
 
-const walletLogout = async (req, res) => {
+const logout = async (req, res) => {
     if (!req.sessionId) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: "Session information missing." }));
@@ -342,7 +342,7 @@ const walletLogout = async (req, res) => {
         res.end(JSON.stringify({ operation: "success" }));
         logger.info(`User ${req.email || req.userId || 'Unknown'} logged out.`);
     } catch (e) {
-        logger.error(`Error during walletLogout: ${e.message}`, e.stack);
+        logger.error(`Error during logout: ${e.message}`, e.stack);
         // Clear cookies even on error
         let cookies = utils.getCookies(req);
         let clearedCookies = [];
@@ -516,7 +516,7 @@ const deletePasskey = async function (req, res) {
     }
 }
 
-const registerTotp = async (req, res) => {
+const setupTotp = async (req, res) => {
     if (!req.userId || !req.email) {
         res.writeHead(401, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: "Authentication required." }));
@@ -543,18 +543,18 @@ const registerTotp = async (req, res) => {
             }));
         }
     } catch (e) {
-        logger.error(`Error during TOTP registration for ${req.email}: ${e.message}`, e.stack);
+        logger.error(`Error during TOTP setup for ${req.email}: ${e.message}`, e.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
 }
 
-const verifyTotp = async (req, res) => {
-    let verifyData;
+const enableTotp = async (req, res) => {
+    let enableData;
     try {
-        verifyData = JSON.parse(req.body);
+        enableData = JSON.parse(req.body);
 
-        const { token, email, enableTotp } = verifyData;
+        const { token, email } = enableData;
 
         if (!token || !/^[0-9]{6}$/.test(token)) {
             res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -563,7 +563,7 @@ const verifyTotp = async (req, res) => {
 
         let userEmail = email;
 
-        if (!userEmail && enableTotp === true) {
+        if (!userEmail) {
             if (!req.email) {
                 res.writeHead(401, { 'Content-Type': 'application/json' });
                 return res.end(JSON.stringify({ error: "Authentication required." }));
@@ -571,57 +571,25 @@ const verifyTotp = async (req, res) => {
             userEmail = decodeURIComponent(req.email);
         }
 
-        if (!userEmail) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: "Email is required." }));
-        }
-
         const client = await initAPIClient(req, constants.USER_PLUGIN);
+        const result = await client.verifyAndEnableTotp(userEmail, token);
 
-        if (enableTotp === true) {
-            const result = await client.verifyAndEnableTotp(userEmail, token);
-
-            if (result.status === STATUS.SUCCESS) {
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: STATUS.SUCCESS,
-                    message: "TOTP enabled successfully"
-                }));
-                logger.info(`TOTP enabled for user ${userEmail}`);
-            } else {
-                res.writeHead(400, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    status: STATUS.FAILED,
-                    error: result.reason || "Invalid verification code"
-                }));
-            }
+        if (result.status === STATUS.SUCCESS) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                status: STATUS.SUCCESS,
+                message: "TOTP enabled successfully"
+            }));
+            logger.info(`TOTP enabled for user ${userEmail}`);
         } else {
-            // This is a login attempt
-            const result = await client.loginWithTotp(userEmail, token);
-
-            if (result.status === STATUS.SUCCESS) {
-                let cookies = utils.createAuthCookies(
-                    result.userId,
-                    result.email,
-                    result.walletKey,
-                    result.sessionId
-                );
-                res.setHeader('Set-Cookie', cookies);
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ operation: "success" }));
-                logger.info(`User ${userEmail} logged in successfully using TOTP.`);
-            } else {
-                const statusCode = (result.reason === "exceeded number of attempts") ? 403 : 401;
-                res.writeHead(statusCode, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({
-                    error: result.reason,
-                    details: { lockTime: result.lockTime }
-                }));
-                logger.warn(`User ${userEmail} TOTP login failed: ${result.reason}`);
-            }
+            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                status: STATUS.FAILED,
+                error: result.reason || "Invalid verification code"
+            }));
         }
     } catch (e) {
-        logger.error(`Error during TOTP verification: ${e.message}`, e.stack);
+        logger.error(`Error during TOTP enablement: ${e.message}`, e.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
     }
@@ -773,13 +741,13 @@ module.exports = {
     generatePasskeySetupOptions,
     loginWithPasskey,
     loginWithTotp,
-    walletLogout,
+    logout,
     getUserInfo,
     setUserInfo,
     addPasskey,
     deletePasskey,
-    registerTotp,
-    verifyTotp,
+    setupTotp,
+    enableTotp,
     deleteTotp,
     getAuthTypes
 }
