@@ -5,9 +5,9 @@ const MAX_USER_CREATION_REQUESTS_PER_HOUR = 1;
 const USER_CREATION_WINDOW_IN_SECONDS = 3600;
 
 const USER_CREATION_PATHS_REGEX = [
-    /\/addPasskey$/,
-    /\/setupTotp$/,
-    /\/enableTotp$/
+    // /\/addPasskey$/,
+    // /\/setupTotp$/,
+    // /\/enableTotp$/
 ];
 
 // Assuming getCookies is available in apiUtils
