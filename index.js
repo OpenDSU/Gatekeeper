@@ -69,10 +69,4 @@ module.exports = async function (server) {
     server.post(`${AUTH_API_PREFIX}/enableTotp`, auth.enableTotp);
 
     server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
-
-    server.get(`${AUTH_API_PREFIX}/passKeyConfig`, async (req, res) => {
-        let config = { rp_id: process.env.RP_ID, app_name: process.env.APP_NAME }
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(config));
-    })
 }
