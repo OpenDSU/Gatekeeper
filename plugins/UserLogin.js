@@ -77,7 +77,7 @@ async function UserLogin() {
         };
     }
 
-    self.createUser = async function (email, name, referrerId) {
+    const createUser = async function (email, name, referrerId) {
         // Check registration attempt rate limiting
         const registrationCheck = checkRegistrationAttempts(email);
         if (!registrationCheck.allowed) {
@@ -161,7 +161,7 @@ async function UserLogin() {
                 // Code is valid, create the user now
                 try {
                     tempCodeCache.delete(email);
-                    let user = await self.createUser(email, tempData.name, tempData.referrerId);
+                    let user = await createUser(email, tempData.name, tempData.referrerId);
 
                     return {
                         status: STATUS.SUCCESS,
@@ -855,15 +855,6 @@ module.exports = {
                 case "addPasskey":
                 case "confirmTotpSetup":
                 case "setupTotp":
-                    user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
-                    if (user && user.globalUserId === globalUserId) {
-                        return true;
-                    }
-                    return false;
-                    userExists = await singletonInstance.persistence.hasUserLoginStatus(args[0]);
-                    if (!userExists) {
-                        return true;
-                    }
                     user = await singletonInstance.persistence.getUserLoginStatus(args[0]);
                     if (user && user.globalUserId === globalUserId) {
                         return true;
