@@ -837,6 +837,7 @@ module.exports = {
                 case "loginWithPasskey":
                 case "loginWithTotp":
                 case "logout":
+                case "requestEmailCode":
                     return true;
                 case "getUserInfo":
                     if (globalUserId === "*") {
@@ -859,7 +860,6 @@ module.exports = {
                         return true;
                     }
                     return false;
-                case "requestEmailCode":
                     userExists = await singletonInstance.persistence.hasUserLoginStatus(args[0]);
                     if (!userExists) {
                         return true;
