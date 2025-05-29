@@ -14,11 +14,11 @@ async function authenticationMiddleware(req, res, next) {
         return next();
     }
 
-    const skipCommands = ["loginWithEmailCode", "loginWithPasskey", "loginWithTotp", "requestEmailCode"];
-    // check if the body.name contains any of the skipCommands
+    const whitelistedCommands = ["loginWithEmailCode", "loginWithPasskey", "loginWithTotp", "requestEmailCode"];
+        // check if the body.name contains any of the skipCommands
     if (req.body) {
         let parsedBody = JSON.parse(req.body);
-        if (parsedBody.name && skipCommands.some(command => parsedBody.name.indexOf(command) !== -1)) {
+        if (parsedBody.name && whitelistedCommands.some(command => parsedBody.name.indexOf(command) !== -1)) {
             return next();
         }
     }
