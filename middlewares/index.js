@@ -26,7 +26,7 @@ async function authenticationMiddleware(req, res, next) {
     if (req.body) {
         let parsedBody = JSON.parse(req.body);
         if (parsedBody.options.authToken) {
-            if (parsedBody.options.authToken === process.env.SSO_SECRETS_ENCRYPTION_KEY) {
+            if (parsedBody.options.authToken === process.env.SERVERLESS_AUTH_SECRET) {
                 return next();
             }
         }
@@ -35,7 +35,7 @@ async function authenticationMiddleware(req, res, next) {
     let openDSU = require("opendsu");
     const system = openDSU.loadApi("system");
     const baseURL = system.getBaseURL();
-    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", { authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY });
+    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", { authToken: process.env.SERVERLESS_AUTH_SECRET });
     let response = await client.checkSessionId(req.sessionId);
     if (response.status === STATUS.SUCCESS) {
         req.userId = response.globalUserId;

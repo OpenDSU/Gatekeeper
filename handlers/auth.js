@@ -22,7 +22,7 @@ async function initAPIClientAdmin(req, pluginName) {
     const userId = req.userId || '*';
     return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
         userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", {
-        authToken: process.env.SSO_SECRETS_ENCRYPTION_KEY,
+        authToken: process.env.SERVERLESS_AUTH_SECRET,
         email: req.email
     }
     );

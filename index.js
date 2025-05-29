@@ -5,8 +5,12 @@ const AUTH_API_PREFIX = process.env.AUTH_API_PREFIX;
 const { authenticationMiddleware, bodyReader, securityMiddleware } = require("./middlewares");
 const { getCookies } = require("./utils/apiUtils");
 const constants = require("./utils/constants");
-
+const crypto = require("crypto");
 module.exports = async function (server) {
+    if (!process.env.SERVERLESS_AUTH_SECRET) {
+        process.env.SERVERLESS_AUTH_SECRET = crypto.randomBytes(32).toString("base64");
+    }
+
     process.env.PERSISTENCE_FOLDER = path.join(server.rootFolder, "external-volume", "balanceData");
     if (!process.env.SERVERLESS_STORAGE) {
         console.error("SERVERLESS_STORAGE is missing, defaults to 'external-volume/appStorage'");
