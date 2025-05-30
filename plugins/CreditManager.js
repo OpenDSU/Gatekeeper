@@ -1,6 +1,6 @@
 const process = require("process");
-const { generateWalletKey, getLoginStrategy } = require("../utils/pluginUtils");
-const { AUTH_TYPES } = require("../constants/authConstants");
+const {generateWalletKey, getLoginStrategy} = require("../utils/pluginUtils");
+const {AUTH_TYPES} = require("../constants/authConstants");
 
 async function CreditManager() {
     let self = {};
@@ -79,9 +79,13 @@ async function CreditManager() {
         await setUpFounderLogin(founder.email, founder.name, founder.id);
         await persistence.rewardFounder(founder.id, amount / founderRewardPercentage, "Founder reward");
     }
-
-    if (!await persistence.hasUserLoginStatus(process.env.SYSADMIN_EMAIL)) {
-        await mint(process.env.SYSTEM_MINT_AMOUNT, process.env.FOUNDER_PERCENTAGE);
+    try {
+        // TODO: OutfitinityGift specific initialization, move specific logic to a separate module
+        if (!await persistence.hasUserLoginStatus(process.env.SYSADMIN_EMAIL)) {
+            await mint(process.env.SYSTEM_MINT_AMOUNT, process.env.FOUNDER_PERCENTAGE);
+        }
+    } catch (error) {
+        console.warn("Error during initialization of CreditManager: ", error.message);
     }
 
     self.addUser = async function (email, name, referrerId) {
@@ -110,7 +114,7 @@ async function CreditManager() {
     self.getTotalBalance = async function (id) {
         const balance = await self.balance(id);
         const lockedBalance = await self.lockedBalance(id);
-        return { balance, lockedBalance };
+        return {balance, lockedBalance};
     }
 
     self.balance = async function (id) {
