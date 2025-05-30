@@ -350,16 +350,6 @@ async function UserLogin() {
             throw new Error(ERROR_REASONS.USER_NOT_EXISTS);
         }
 
-        // Check registration attempt rate limiting for additional passkeys
-        const registrationCheck = checkRegistrationAttempts(email);
-        if (!registrationCheck.allowed) {
-            return {
-                status: STATUS.FAILED,
-                reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
-                lockTime: registrationCheck.lockTime
-            };
-        }
-
         const strategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
         if (!strategy || typeof strategy.addPasskey !== 'function') {
             throw new Error("Passkey strategy not available or invalid.");
@@ -381,16 +371,9 @@ async function UserLogin() {
                 await persistence.updateUserLoginStatus(user.id, user);
             }
 
-            // Track this registration attempt only if successful
-            if (result.status === STATUS.SUCCESS) {
-                incrementRegistrationAttempts(email);
-            }
-
             return result;
         } catch (e) {
             console.error("Error during addPasskey handling:", e);
-            // Track failed registration attempt
-            incrementRegistrationAttempts(email);
             throw e;
         }
     }
@@ -702,16 +685,6 @@ async function UserLogin() {
 
         let user = await persistence.getUserLoginStatus(email);
 
-        // Check registration attempt rate limiting for TOTP setup
-        const registrationCheck = checkRegistrationAttempts(email);
-        if (!registrationCheck.allowed) {
-            return {
-                status: STATUS.FAILED,
-                reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
-                lockTime: registrationCheck.lockTime
-            };
-        }
-
         // Generate a new TOTP secret
         const secret = new otpauth.Secret();
         const totp = new otpauth.TOTP({
@@ -734,9 +707,6 @@ async function UserLogin() {
         try {
             await strategy.setTotpSecret(user, secret.base32);
 
-            // Track this registration attempt
-            incrementRegistrationAttempts(email);
-
             return {
                 status: STATUS.SUCCESS,
                 uri: uri,
@@ -744,8 +714,6 @@ async function UserLogin() {
             };
         } catch (e) {
             console.error(`Error setting TOTP secret for ${email}:`, e);
-            // Track failed registration attempt
-            incrementRegistrationAttempts(email);
             return { status: STATUS.FAILED, reason: `Failed to set TOTP secret: ${e.message}` };
         }
     }
