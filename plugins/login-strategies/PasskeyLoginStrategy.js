@@ -77,6 +77,40 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         }
     }
 
+    async generateLoginChallenge(user) {
+        if (!user.authTypes) {
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
+        }
+
+        if (!user.passkeyCredentials || user.passkeyCredentials.length === 0) {
+            throw new Error("User does not have passkey credentials");
+        }
+
+        const allowCredentials = user.passkeyCredentials.map(cred => ({
+            type: 'public-key',
+            id: cred.id,
+            transports: cred.transports
+        }));
+
+        const challenge = this.crypto.randomBytes(32).toString("base64url");
+        const challengeKey = `login_challenge_${user.email}_${Date.now()}`;
+        this.loginChallenges.set(challengeKey, challenge);
+        setTimeout(() => this.loginChallenges.delete(challengeKey), 5 * 60 * 1000);
+
+        const publicKeyCredentialRequestOptions = {
+            challenge: challenge,
+            allowCredentials: allowCredentials,
+            rpId: process.env.RP_ID,
+            userVerification: 'required',
+            timeout: 60000,
+        };
+
+        return {
+            publicKeyCredentialRequestOptions: JSON.stringify(publicKeyCredentialRequestOptions),
+            challengeKey: challengeKey
+        };
+    }
+
     async createUser(userPayload, registrationData) {
         if (!registrationData) {
             throw new Error("Missing registration data for passkey user creation.");

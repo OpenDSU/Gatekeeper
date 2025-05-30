@@ -42,11 +42,11 @@ module.exports = async function (server) {
         next();
     });
 
-    server.get(`${AUTH_API_PREFIX}/userExists/:email`, auth.userExists);
-
     server.get(`${AUTH_API_PREFIX}/getInfo`, auth.getUserInfo);
 
-    server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
+    server.get(`${AUTH_API_PREFIX}/getAuthInfo/:email`, auth.getAuthInfo);
+
+    server.get(`${AUTH_API_PREFIX}/getPublicAuthInfo/:email`, auth.getPublicAuthInfo);
 
     server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
@@ -55,6 +55,8 @@ module.exports = async function (server) {
     server.post(`${AUTH_API_PREFIX}/loginWithEmailCode`, auth.loginWithEmailCode);
 
     server.post(`${AUTH_API_PREFIX}/generatePasskeySetupOptions`, auth.generatePasskeySetupOptions);
+
+    server.get(`${AUTH_API_PREFIX}/generatePasskeyLoginOptions/:email`, auth.generatePasskeyLoginOptions);
 
     server.post(`${AUTH_API_PREFIX}/loginWithPasskey`, auth.loginWithPasskey);
 

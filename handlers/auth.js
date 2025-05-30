@@ -5,7 +5,7 @@ const system = openDSU.loadApi("system");
 const baseURL = system.getBaseURL();
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
-const { STATUS } = require('../constants/authConstants');
+const { STATUS, ERROR_REASONS } = require('../constants/authConstants');
 
 // Shared challenge cache for passkey registration
 const challengeCache = new Map();
@@ -18,45 +18,7 @@ async function initAPIClient(req, pluginName) {
     );
 }
 
-const userExists = async function (req, res) {
-    try {
-        let { email } = req.params;
-        email = decodeURIComponent(email);
-        utils.validateEmail(email);
-
-        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
-        const response = await userLoginClient.userExists(email);
-
-        const responseData = {
-            account_exists: response.userExists,
-            activeAuthType: response.activeAuthType,
-            authTypes: response.authTypes || []
-        };
-
-        // Include passkey challenge data if user has passkeys
-        if (response.userExists && response.authMetadata) {
-            if (response.authMetadata.publicKeyCredentialRequestOptions) {
-                responseData.publicKeyCredentialRequestOptions = response.authMetadata.publicKeyCredentialRequestOptions;
-            }
-            if (response.authMetadata.challengeKey) {
-                responseData.challengeKey = response.authMetadata.challengeKey;
-            }
-            // Include other auth metadata
-            Object.keys(response.authMetadata).forEach(key => {
-                if (key !== 'publicKeyCredentialRequestOptions' && key !== 'challengeKey') {
-                    responseData[key] = response.authMetadata[key];
-                }
-            });
-        }
-
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(responseData));
-    } catch (err) {
-        logger.error(`Error in userExists for ${req.params.email}: ${err.message}`, err.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: err.message }));
-    }
-}
+// Removed userExists function - now using getAuthInfo for authenticated access and getPublicAuthInfo for public access
 
 const sendCodeByEmail = async function (req, res) {
     let authData = req.body;
@@ -627,7 +589,46 @@ const deleteTotp = async function (req, res) {
     }
 }
 
-const getAuthTypes = async function (req, res) {
+const getAuthInfo = async function (req, res) {
+    try {
+        let email = req.params.email;
+        if (!email) {
+            if (!req.email) {
+                res.statusCode = 401;
+                return res.end(JSON.stringify({
+                    status: STATUS.FAILED,
+                    message: "Authentication required"
+                }));
+            }
+            email = req.email;
+        }
+        email = decodeURIComponent(email);
+        utils.validateEmail(email);
+
+        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
+        const result = await userLoginClient.getAuthInfo(email);
+
+        if (result.status !== STATUS.SUCCESS) {
+            throw new Error(result.reason || "Failed to get authentication information");
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: STATUS.SUCCESS,
+            userExists: result.userExists,
+            authMethods: result.authMethods,
+            activeAuthType: result.activeAuthType,
+            authMetadata: result.authMetadata
+        }));
+
+    } catch (err) {
+        logger.error(`Error in getAuthInfo for ${req.params?.email || 'unknown'}: ${err.message}`, err.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+    }
+}
+
+const getPublicAuthInfo = async function (req, res) {
     try {
         let email = req.params.email;
         if (!email) {
@@ -641,7 +642,7 @@ const getAuthTypes = async function (req, res) {
         utils.validateEmail(email);
 
         const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
-        const result = await userLoginClient.getAuthTypes(email);
+        const result = await userLoginClient.getPublicAuthInfo(email);
 
         if (result.status !== STATUS.SUCCESS) {
             throw new Error(result.reason || "Failed to get authentication types");
@@ -650,30 +651,72 @@ const getAuthTypes = async function (req, res) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
-            authTypes: result.authTypes
+            userExists: result.userExists,
+            authMethods: result.authMethods
         }));
 
     } catch (err) {
-        logger.error(`Error in getAuthTypes for ${req.params?.email || 'unknown'}: ${err.message}`, err.stack);
+        logger.error(`Error in getPublicAuthInfo for ${req.params?.email || 'unknown'}: ${err.message}`, err.stack);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        return res.end(JSON.stringify({ error: err.message }));
+    }
+}
+
+const generatePasskeyLoginOptions = async function (req, res) {
+    try {
+        let email = req.params.email;
+        if (!email) {
+            res.statusCode = 400;
+            return res.end(JSON.stringify({
+                status: STATUS.FAILED,
+                message: "No email provided"
+            }));
+        }
+        email = decodeURIComponent(email);
+        utils.validateEmail(email);
+
+        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
+        const result = await userLoginClient.generatePasskeyChallenge(email);
+
+        if (result.status !== STATUS.SUCCESS) {
+            const statusCode = result.reason === ERROR_REASONS.USER_NOT_EXISTS ? 404 :
+                result.reason === "User does not have passkey authentication enabled" ? 400 : 500;
+            res.statusCode = statusCode;
+            return res.end(JSON.stringify({
+                status: STATUS.FAILED,
+                message: result.reason
+            }));
+        }
+
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: STATUS.SUCCESS,
+            publicKeyCredentialRequestOptions: result.publicKeyCredentialRequestOptions,
+            challengeKey: result.challengeKey
+        }));
+
+    } catch (err) {
+        logger.error(`Error in generatePasskeyLoginOptions for ${req.params.email}: ${err.message}`, err.stack);
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: err.message }));
     }
 }
 
 module.exports = {
-    userExists,
-    sendCodeByEmail,
     loginWithEmailCode,
-    generatePasskeySetupOptions,
     loginWithPasskey,
     loginWithTotp,
-    logout,
+    sendCodeByEmail,
     getUserInfo,
+    logout,
     setUserInfo,
+    generatePasskeySetupOptions,
     addPasskey,
     deletePasskey,
     setupTotp,
     enableTotp,
     deleteTotp,
-    getAuthTypes
+    getAuthInfo,
+    getPublicAuthInfo,
+    generatePasskeyLoginOptions
 }

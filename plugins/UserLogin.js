@@ -22,61 +22,6 @@ async function UserLogin() {
 
     self.persistence = persistence;
 
-    self.userExists = async function (email) {
-        let userExists = await persistence.hasUserLoginStatus(email);
-        if (userExists) {
-            let user = await persistence.getUserLoginStatus(email);
-            if (!user.authTypes && user.activeAuthType) {
-                user.authTypes = [user.activeAuthType];
-                await persistence.updateUserLoginStatus(user.id, user);
-            }
-
-            const defaultAuthType = user.authTypes && user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL;
-            const strategy = getLoginStrategy(defaultAuthType, persistence);
-            const strategyResult = await strategy.userExists(user);
-
-            let finalAuthMetadata = { ...(strategyResult.authMetadata || {}) };
-            finalAuthMetadata.totpEnabled = !!user.totpEnabled;
-            finalAuthMetadata.totpPendingSetup = !!user.totpPendingSetup;
-
-            // Get passkey challenge if user has passkeys
-            if (user.passkeyCredentials && user.passkeyCredentials.length > 0 && defaultAuthType !== AUTH_TYPES.PASSKEY) {
-                const passkeyStrategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
-                const passkeyStrategyResult = await passkeyStrategy.userExists(user);
-                if (passkeyStrategyResult.authMetadata) {
-                    if (passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions) {
-                        finalAuthMetadata.publicKeyCredentialRequestOptions = passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions;
-                    }
-                    if (passkeyStrategyResult.authMetadata.challengeKey) {
-                        finalAuthMetadata.challengeKey = passkeyStrategyResult.authMetadata.challengeKey;
-                    }
-                }
-            }
-
-            if (strategyResult.authMetadata?.publicKeyCredentialRequestOptions) {
-                finalAuthMetadata.publicKeyCredentialRequestOptions = strategyResult.authMetadata.publicKeyCredentialRequestOptions;
-            }
-            if (strategyResult.authMetadata?.challengeKey) {
-                finalAuthMetadata.challengeKey = strategyResult.authMetadata.challengeKey;
-            }
-
-            return {
-                status: STATUS.SUCCESS,
-                userExists: true,
-                authTypes: user.authTypes || [AUTH_TYPES.EMAIL],
-                activeAuthType: strategyResult.activeAuthType || defaultAuthType,
-                authMetadata: finalAuthMetadata
-            };
-        }
-        return {
-            status: STATUS.SUCCESS,
-            userExists: false,
-            authTypes: [AUTH_TYPES.EMAIL],
-            activeAuthType: AUTH_TYPES.EMAIL,
-            authMetadata: {}
-        };
-    }
-
     const createUser = async function (email, name, referrerId) {
         // Check registration attempt rate limiting
         const registrationCheck = checkRegistrationAttempts(email);
@@ -677,16 +622,132 @@ async function UserLogin() {
         return { status: STATUS.SUCCESS };
     }
 
-    self.getAuthTypes = async function (email) {
+    // Private function to generate challenge data for authentication
+    const _generateChallengeData = async function (email) {
+        let challengeData = {};
+        try {
+            let user = await persistence.getUserLoginStatus(email);
+            if (user) {
+                if (!user.authTypes) {
+                    user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
+                }
+
+                const defaultAuthType = user.authTypes && user.authTypes.length > 0 ? user.authTypes[0] : AUTH_TYPES.EMAIL;
+                const strategy = getLoginStrategy(defaultAuthType, persistence);
+                const strategyResult = await strategy.userExists(user);
+
+                challengeData = {
+                    activeAuthType: strategyResult.activeAuthType || defaultAuthType,
+                    authMetadata: { ...(strategyResult.authMetadata || {}) }
+                };
+
+                // Add TOTP metadata
+                challengeData.authMetadata.totpEnabled = !!user.totpEnabled;
+                challengeData.authMetadata.totpPendingSetup = !!user.totpPendingSetup;
+
+                // Get passkey challenge if user has passkeys and default auth type is not passkey
+                if (user.passkeyCredentials && user.passkeyCredentials.length > 0 && defaultAuthType !== AUTH_TYPES.PASSKEY) {
+                    const passkeyStrategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
+                    const passkeyStrategyResult = await passkeyStrategy.userExists(user);
+                    if (passkeyStrategyResult.authMetadata) {
+                        if (passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions) {
+                            challengeData.authMetadata.publicKeyCredentialRequestOptions = passkeyStrategyResult.authMetadata.publicKeyCredentialRequestOptions;
+                        }
+                        if (passkeyStrategyResult.authMetadata.challengeKey) {
+                            challengeData.authMetadata.challengeKey = passkeyStrategyResult.authMetadata.challengeKey;
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.error(`Error getting challenge data for ${email}:`, e);
+            // Continue without challenge data if there's an error
+        }
+        return challengeData;
+    };
+
+    self.getAuthInfo = async function (email) {
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
+        }
+
+        let user = await persistence.getUserLoginStatus(email);
+
+        if (!user.authTypes) {
+            user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
+        }
+
+        const authMethods = [];
+
+        // Email is always available
+        authMethods.push({
+            type: AUTH_TYPES.EMAIL,
+            createdAt: user.userInfo?.createdAt || null
+        });
+
+        // Add other auth types
+        if (user.authTypes && user.authTypes.length > 0) {
+            user.authTypes.forEach(authType => {
+                if (authType !== AUTH_TYPES.EMAIL && authType !== AUTH_TYPES.PASSKEY) {
+                    authMethods.push({
+                        type: authType,
+                        createdAt: user.userInfo?.createdAt || null
+                    });
+                }
+            });
+        }
+
+        // Add passkey credentials with all details for authenticated users
+        if (user.passkeyCredentials && user.passkeyCredentials.length > 0) {
+            user.passkeyCredentials.forEach(passkey => {
+                authMethods.push({
+                    type: AUTH_TYPES.PASSKEY,
+                    id: passkey.id,
+                    name: passkey.name,
+                    createdAt: passkey.createdAt,
+                    transports: passkey.transports
+                });
+            });
+        }
+
+        // Add TOTP info with sensitive data for authenticated users
+        if (user.totpEnabled || user.totpPendingSetup) {
+            const totpMethod = authMethods.find(method => method.type === AUTH_TYPES.TOTP);
+            if (totpMethod) {
+                totpMethod.enabled = user.totpEnabled;
+                totpMethod.setupPending = !!user.totpPendingSetup;
+            } else {
+                authMethods.push({
+                    type: AUTH_TYPES.TOTP,
+                    enabled: user.totpEnabled,
+                    setupPending: !!user.totpPendingSetup
+                });
+            }
+        }
+
+        // Get challenge data using the private function
+        const challengeData = await _generateChallengeData(email);
+
+        return {
+            status: STATUS.SUCCESS,
+            userExists: true,
+            authMethods: authMethods,
+            ...challengeData
+        };
+    }
+
+    self.getPublicAuthInfo = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
             // Return default structure for non-existent users (only email registration available)
             return {
                 status: STATUS.SUCCESS,
-                authTypes: [AUTH_TYPES.EMAIL],
-                totpEnabled: false,
-                totpPendingSetup: false,
-                passkeyCredentials: []
+                userExists: false,
+                authMethods: [{
+                    type: AUTH_TYPES.EMAIL,
+                    createdAt: null
+                }]
             };
         }
 
@@ -696,19 +757,87 @@ async function UserLogin() {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
 
-        // Return same structure as getUserInfo but without sensitive data
+        const authMethods = [];
+
+        // Email is always available
+        authMethods.push({
+            type: AUTH_TYPES.EMAIL,
+            createdAt: user.userInfo?.createdAt || null
+        });
+
+        // Add other auth types
+        if (user.authTypes && user.authTypes.length > 0) {
+            user.authTypes.forEach(authType => {
+                if (authType !== AUTH_TYPES.EMAIL && authType !== AUTH_TYPES.PASSKEY) {
+                    authMethods.push({
+                        type: authType,
+                        createdAt: user.userInfo?.createdAt || null
+                    });
+                }
+            });
+        }
+
+        // Add passkey credentials (without sensitive ID)
+        if (user.passkeyCredentials && user.passkeyCredentials.length > 0) {
+            user.passkeyCredentials.forEach(passkey => {
+                authMethods.push({
+                    type: AUTH_TYPES.PASSKEY,
+                    // Remove sensitive id, createdAt, and transports for public response
+                    name: passkey.name
+                });
+            });
+        }
+
+        // Add TOTP info
+        if (user.totpEnabled || user.totpPendingSetup) {
+            const totpMethod = authMethods.find(method => method.type === AUTH_TYPES.TOTP);
+            if (totpMethod) {
+                totpMethod.enabled = user.totpEnabled;
+                // Remove setupPending for public response
+            } else {
+                authMethods.push({
+                    type: AUTH_TYPES.TOTP,
+                    enabled: user.totpEnabled
+                    // Remove setupPending and createdAt for public response
+                });
+            }
+        }
+
         return {
             status: STATUS.SUCCESS,
-            authTypes: user.authTypes,
-            totpEnabled: user.totpEnabled || false,
-            totpPendingSetup: user.totpPendingSetup || false,
-            passkeyCredentials: (user.passkeyCredentials || []).map(cred => ({
-                // Remove sensitive id, keep only public info
-                name: cred.name,
-                createdAt: cred.createdAt,
-                transports: cred.transports
-            }))
+            userExists: true,
+            authMethods: authMethods
         };
+    }
+
+    self.generatePasskeyChallenge = async function (email) {
+        let userExists = await persistence.hasUserLoginStatus(email);
+        if (!userExists) {
+            return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
+        }
+
+        let user = await persistence.getUserLoginStatus(email);
+
+        // Check if user has passkey credentials
+        if (!user.passkeyCredentials || user.passkeyCredentials.length === 0) {
+            return { status: STATUS.FAILED, reason: "User does not have passkey authentication enabled" };
+        }
+
+        const strategy = getLoginStrategy(AUTH_TYPES.PASSKEY, persistence);
+        if (!strategy || typeof strategy.generateLoginChallenge !== 'function') {
+            return { status: STATUS.FAILED, reason: "Passkey strategy not available" };
+        }
+
+        try {
+            const challengeData = await strategy.generateLoginChallenge(user);
+            return {
+                status: STATUS.SUCCESS,
+                ...challengeData
+            };
+        } catch (e) {
+            console.error(`Error generating passkey challenge for ${email}:`, e);
+            return { status: STATUS.FAILED, reason: e.message };
+        }
     }
 
     self.setupTotp = async function (email) {
@@ -834,7 +963,8 @@ module.exports = {
                 case "loginWithTotp":
                 case "logout":
                 case "requestEmailCode":
-                case "getAuthTypes":
+                case "getPublicAuthInfo":
+                case "generatePasskeyChallenge":
                     return true;
                 case "getUserInfo":
                 case "deletePasskey":
@@ -843,6 +973,7 @@ module.exports = {
                 case "addPasskey":
                 case "confirmTotpSetup":
                 case "setupTotp":
+                case "getAuthInfo":
                     userExists = await singletonInstance.persistence.hasUserLoginStatus(args[0]);
                     if (!userExists) {
                         return false;
