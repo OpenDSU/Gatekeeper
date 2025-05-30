@@ -18,23 +18,13 @@ async function initAPIClient(req, pluginName) {
     );
 }
 
-async function initAPIClientAdmin(req, pluginName) {
-    const userId = req.userId || '*';
-    return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
-        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", {
-        authToken: process.env.SERVERLESS_AUTH_SECRET,
-        email: req.email
-    }
-    );
-}
-
 const userExists = async function (req, res) {
     try {
         let { email } = req.params;
         email = decodeURIComponent(email);
         utils.validateEmail(email);
 
-        const userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
+        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
         const response = await userLoginClient.userExists(email);
 
         const responseData = {
@@ -87,7 +77,7 @@ const sendCodeByEmail = async function (req, res) {
     req.email = email;
 
     try {
-        const userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
+        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
         const result = await userLoginClient.requestEmailCode(email, parsedData?.name, parsedData?.referrerId);
 
         if (result.status === STATUS.SUCCESS) {
@@ -96,7 +86,7 @@ const sendCodeByEmail = async function (req, res) {
             if (process.env.NODE_ENV === 'development' || req.headers.origin === "http://localhost:8080") {
                 responseMessage.code = result.code;
             } else {
-                const emailClient = await initAPIClientAdmin(req, constants.EMAIL_PLUGIN);
+                const emailClient = await initAPIClient(req, constants.EMAIL_PLUGIN);
                 try {
                     await emailClient.sendEmail(
                         result.userId,
@@ -654,7 +644,7 @@ const getAuthTypes = async function (req, res) {
         utils.validateEmail(email);
         req.email = email;
 
-        let userLoginClient = await initAPIClientAdmin(req, constants.USER_PLUGIN);
+        let userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
         const userInfoResult = await userLoginClient.getUserInfo(email);
 
         if (userInfoResult.status !== STATUS.SUCCESS) {
