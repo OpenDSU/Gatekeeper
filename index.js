@@ -46,6 +46,8 @@ module.exports = async function (server) {
 
     server.get(`${AUTH_API_PREFIX}/getInfo`, auth.getUserInfo);
 
+    server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
+
     server.use(`${AUTH_API_PREFIX}/*`, bodyReader);
 
     server.post(`${AUTH_API_PREFIX}/sendCodeByEmail`, auth.sendCodeByEmail);
@@ -71,6 +73,4 @@ module.exports = async function (server) {
     server.post(`${AUTH_API_PREFIX}/setupTotp`, auth.setupTotp);
 
     server.post(`${AUTH_API_PREFIX}/enableTotp`, auth.enableTotp);
-
-    server.get(`${AUTH_API_PREFIX}/getAuthTypes/:email`, auth.getAuthTypes);
 }

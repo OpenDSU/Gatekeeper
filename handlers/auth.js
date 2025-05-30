@@ -5,7 +5,7 @@ const system = openDSU.loadApi("system");
 const baseURL = system.getBaseURL();
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
-const { AUTH_TYPES, STATUS } = require('../constants/authConstants');
+const { STATUS } = require('../constants/authConstants');
 
 // Shared challenge cache for passkey registration
 const challengeCache = new Map();
@@ -631,94 +631,30 @@ const getAuthTypes = async function (req, res) {
     try {
         let email = req.params.email;
         if (!email) {
-            if (!req.email) {
-                res.statusCode = 400;
-                return res.end(JSON.stringify({
-                    status: STATUS.FAILED,
-                    message: "No email provided"
-                }));
-            }
-            email = req.email;
+            res.statusCode = 400;
+            return res.end(JSON.stringify({
+                status: STATUS.FAILED,
+                message: "No email provided"
+            }));
         }
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-        req.email = email;
 
-        let userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
-        const userInfoResult = await userLoginClient.getUserInfo(email);
+        const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
+        const result = await userLoginClient.getAuthTypes(email);
 
-        if (userInfoResult.status !== STATUS.SUCCESS) {
-            throw new Error(userInfoResult.reason || "Failed to get user information");
-        }
-
-        const userInfo = userInfoResult.userInfo;
-        const authMethods = [];
-
-        // Email is always available
-        authMethods.push({
-            type: AUTH_TYPES.EMAIL,
-            createdAt: userInfo.createdAt || null
-        });
-
-        // Add other auth types
-        if (userInfo.authTypes && userInfo.authTypes.length > 0) {
-            userInfo.authTypes.forEach(authType => {
-                if (authType !== AUTH_TYPES.EMAIL && authType !== AUTH_TYPES.PASSKEY) {
-                    authMethods.push({
-                        type: authType,
-                        createdAt: userInfo.createdAt || null
-                    });
-                }
-            });
-        }
-
-        // Add passkey credentials
-        if (userInfo.passkeyCredentials && userInfo.passkeyCredentials.length > 0) {
-            userInfo.passkeyCredentials.forEach(passkey => {
-                authMethods.push({
-                    type: AUTH_TYPES.PASSKEY,
-                    id: passkey.id,
-                    name: passkey.name,
-                    createdAt: passkey.createdAt,
-                    transports: passkey.transports
-                });
-            });
-        }
-
-        // Add TOTP info
-        if (userInfo.totpEnabled || userInfo.totpPendingSetup) {
-            const totpMethod = authMethods.find(method => method.type === AUTH_TYPES.TOTP);
-            if (totpMethod) {
-                totpMethod.enabled = userInfo.totpEnabled;
-                totpMethod.setupPending = !!userInfo.totpPendingSetup;
-            } else {
-                authMethods.push({
-                    type: AUTH_TYPES.TOTP,
-                    enabled: userInfo.totpEnabled,
-                    setupPending: !!userInfo.totpPendingSetup
-                });
-            }
+        if (result.status !== STATUS.SUCCESS) {
+            throw new Error(result.reason || "Failed to get authentication types");
         }
 
         res.writeHead(200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
-            userExists: true,
-            authMethods: authMethods
+            authTypes: result.authTypes
         }));
 
     } catch (err) {
         logger.error(`Error in getAuthTypes for ${req.params?.email || 'unknown'}: ${err.message}`, err.stack);
-
-        if (err.message && err.message.includes("user not exists")) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({
-                status: STATUS.SUCCESS,
-                userExists: false,
-                authMethods: []
-            }));
-        }
-
         res.writeHead(500, { 'Content-Type': 'application/json' });
         return res.end(JSON.stringify({ error: err.message }));
     }

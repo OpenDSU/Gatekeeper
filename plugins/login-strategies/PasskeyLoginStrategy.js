@@ -212,12 +212,18 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         }
 
         try {
+            if (!this.parsedTrustedRoots) {
+                const rootsPem = fs.readFileSync(ROOTS_PEM_PATH, 'utf8');
+                this.parsedTrustedRoots = this.webauthnUtils.parseRootsPem(rootsPem);
+            }
+
             const verificationResult = await this.webauthnUtils.verifyRegistrationResponse(
                 registrationData,
                 undefined,
                 process.env.ORIGIN,
                 process.env.RP_ID,
-                true
+                true,
+                this.parsedTrustedRoots
             );
 
             const aaguidHex = verificationResult.aaguid.toString('hex');
