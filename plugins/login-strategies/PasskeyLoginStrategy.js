@@ -240,7 +240,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
 
             const newCredential = {
                 id: verificationResult.credentialId.toString('base64url'),
-                publicKey: verificationResult.credentialPublicKey,
+                publicKey: verificationResult.credentialPublicKey.toString('base64url'),
                 signCount: verificationResult.signCount,
                 aaguid: aaguidHex,
                 name: authenticatorName,
@@ -253,7 +253,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             const systemAudit = SystemAudit.getSystemAudit();
             await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_REGISTER, {
                 userId: user.globalUserId,
-                publicKey: newCredential.publicKey.toString('base64url'),
+                publicKey: newCredential.publicKey,
             });
             console.log(`Added new passkey for user ${user.email} with authenticator: ${authenticatorName}`);
 
@@ -316,7 +316,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             const systemAudit = SystemAudit.getSystemAudit();
             await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_DELETE, {
                 userId: user.globalUserId,
-                publicKey: passkey.publicKey.toString('base64url'),
+                publicKey: passkey.publicKey,
             });
         } catch (auditError) {
             console.error("Failed to log passkey deletion to audit:", auditError);
