@@ -45,23 +45,9 @@ const sendCodeByEmail = async function (req, res) {
         if (result.status === STATUS.SUCCESS) {
             let responseMessage = { status: STATUS.SUCCESS };
 
+            // Include code in response only for development or localhost
             if (process.env.NODE_ENV === 'development' || req.headers.origin === "http://localhost:8080") {
                 responseMessage.code = result.code;
-            } else {
-                const emailClient = await initAPIClient(req, constants.EMAIL_PLUGIN);
-                try {
-                    await emailClient.sendEmail(
-                        result.userId,
-                        email,
-                        process.env.SENDGRID_SENDER_EMAIL,
-                        "Your authentication code",
-                        `Your authentication code is: ${result.code}`,
-                        `Your authentication code is: <strong>${result.code}</strong>`
-                    );
-                    logger.info(`Sent auth code email to ${email}`);
-                } catch (err) {
-                    logger.error(`Failed to send email to ${email}: ${err.message}`);
-                }
             }
 
             res.writeHead(200, { 'Content-Type': 'application/json' });

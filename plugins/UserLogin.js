@@ -375,9 +375,27 @@ async function UserLogin() {
             // Track this registration attempt
             incrementRegistrationAttempts(email);
 
+            // Send email if not in development mode
+            if (process.env.NODE_ENV !== 'development') {
+                try {
+                    let EmailPlugin = await $$.loadPlugin("EmailPlugin");
+                    await EmailPlugin.sendEmail(
+                        null, // no userId for new users
+                        email,
+                        process.env.SENDGRID_SENDER_EMAIL,
+                        "Your authentication code",
+                        `Your authentication code is: ${code}`,
+                        `Your authentication code is: <strong>${code}</strong>`
+                    );
+                } catch (err) {
+                    console.error(`Failed to send email to ${email}: ${err.message}`);
+                    // Don't fail the whole operation if email fails
+                }
+            }
+
             return {
                 status: STATUS.SUCCESS,
-                code: code,
+                code: process.env.NODE_ENV === 'development' ? code : undefined,
                 authTypes: [AUTH_TYPES.EMAIL]
             };
         }
@@ -401,8 +419,34 @@ async function UserLogin() {
         }
 
         const strategy = getLoginStrategy(AUTH_TYPES.EMAIL, persistence);
+        const result = await strategy.getEmailCode(user);
 
-        return await strategy.getEmailCode(user);
+        // Send email if not in development mode and code generation was successful
+        if (result.status === STATUS.SUCCESS && process.env.NODE_ENV !== 'development') {``
+            try {
+                let EmailPlugin = await $$.loadPlugin("EmailPlugin");
+                await EmailPlugin.sendEmail(
+                    user.globalUserId,
+                    email,
+                    process.env.SENDGRID_SENDER_EMAIL,
+                    "Your authentication code",
+                    `Your authentication code is: ${result.code}`,
+                    `Your authentication code is: <strong>${result.code}</strong>`
+                );
+            } catch (err) {
+                console.error(`Failed to send email to ${email}: ${err.message}`);
+                // Don't fail the whole operation if email fails
+            }
+        }
+
+        // Return code only in development mode
+        if (result.status === STATUS.SUCCESS && process.env.NODE_ENV === 'development') {
+            console.log("DEBUG----------: result.code", result.code);
+        } else if (result.status === STATUS.SUCCESS) {
+            delete result.code; // Remove code from response in production
+        }
+
+        return result;
     };
 
     self.checkSessionId = async function (sessionId) {
@@ -989,6 +1033,6 @@ module.exports = {
         }
     },
     getDependencies: function () {
-        return ["StandardPersistence", "CreditManager"];
+        return ["StandardPersistence", "CreditManager", "EmailPlugin"];
     }
 }
