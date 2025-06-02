@@ -3,5 +3,6 @@ module.exports = {
     USER_PLUGIN: "UserLogin",
     CREDIT_MANAGER: "CreditManager",
     EMAIL_PLUGIN: "EmailPlugin",
-    AUDIT_PLUGIN: "AuditPlugin"
+    AUDIT_PLUGIN: "AuditPlugin",
+    USER_LOGGER: "UserLoggerPlugin"
 }
