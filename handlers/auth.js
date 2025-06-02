@@ -84,7 +84,7 @@ const loginWithEmailCode = async function (req, res) {
 
     try {
         const userLoginClient = await initAPIClient(req, constants.USER_PLUGIN);
-        const result = await userLoginClient.loginWithEmailCode(email, parsedData.code);
+        const result = await userLoginClient.loginWithEmailCode(email, parsedData.code, parsedData.referrerId);
 
         if (result.status === STATUS.SUCCESS) {
             let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
