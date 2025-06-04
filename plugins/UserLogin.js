@@ -898,8 +898,12 @@ async function UserLogin() {
 
         // Generate a new TOTP secret
         const secret = new otpauth.Secret();
+        const appName = process.env.APP_NAME || 'MyApp';
+
+        console.log(`Setting up TOTP for ${email}. APP_NAME: ${appName}`);
+
         const totp = new otpauth.TOTP({
-            issuer: process.env.APP_NAME || 'MyApp',
+            issuer: appName,
             label: email,
             algorithm: 'SHA1',
             digits: 6,
@@ -908,6 +912,7 @@ async function UserLogin() {
         });
 
         const uri = totp.toString();
+        console.log(`Generated TOTP URI for ${email}: ${uri.substring(0, 50)}...`);
 
         // Store the secret using the strategy
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);

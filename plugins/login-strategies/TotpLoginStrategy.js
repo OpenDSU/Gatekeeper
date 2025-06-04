@@ -70,11 +70,13 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
                 secret: user.totpSecret // Use the stored secret directly (should be base32)
             });
 
-            const delta = totp.validate({ token: totpCode, window: 1 });
+            // Use window of 2 for more tolerance (±60 seconds)
+            const delta = totp.validate({ token: totpCode, window: 2 });
 
             if (delta !== null) {
                 return { verified: true };
             } else {
+                console.log(`TOTP validation failed for user ${user.email}. Issuer: ${TOTP_SETTINGS.ISSUER}, Code: ${totpCode}, Current timestamp: ${Date.now()}`);
                 return { verified: false, reason: ERROR_REASONS.INVALID_TOTP_CODE };
             }
         } catch (e) {
@@ -141,6 +143,7 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
                 user.validationEmailCodeTimestamp = undefined;
 
                 await this.persistence.updateUserLoginStatus(user.id, user);
+                console.log(`TOTP setup confirmed successfully for ${user.email}`);
                 return { verified: true };
             } else {
                 console.log("DEBUG: TOTP verification failed");
