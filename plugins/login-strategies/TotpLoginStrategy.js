@@ -120,6 +120,19 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
             console.log(JSON.stringify(user));
             console.log(JSON.stringify(token));
             console.log("------------------------------------------------------------------");
+
+            // Debug: Check TOTP library
+            console.log(`DEBUG: TOTP library available: ${!!this.otpauth}`);
+            console.log(`DEBUG: TOTP library type: ${typeof this.otpauth}`);
+            console.log(`DEBUG: TOTP.TOTP available: ${!!this.otpauth.TOTP}`);
+
+            // Debug: Show current timestamp and time information
+            const currentTimestamp = Date.now();
+            const currentTimeStep = Math.floor(currentTimestamp / 30000);
+            console.log(`DEBUG: Current timestamp: ${currentTimestamp}`);
+            console.log(`DEBUG: Current time step: ${currentTimeStep}`);
+            console.log(`DEBUG: Current time: ${new Date(currentTimestamp).toISOString()}`);
+
             const totp = new this.otpauth.TOTP({
                 issuer: TOTP_SETTINGS.ISSUER,
                 label: user.email,
@@ -129,7 +142,36 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
                 secret: user.totpSecret
             });
 
+            // Debug: Generate expected codes for current time window
+            console.log(`DEBUG: TOTP Settings - Issuer: ${TOTP_SETTINGS.ISSUER}, Algorithm: ${TOTP_SETTINGS.ALGORITHM}, Digits: ${TOTP_SETTINGS.DIGITS}, Period: ${TOTP_SETTINGS.PERIOD}`);
+            console.log(`DEBUG: Secret (base32): ${user.totpSecret}`);
+
+            // Generate codes for previous, current, and next time steps
+            const prevCode = totp.generate({ timestamp: currentTimestamp - 30000 });
+            const currentCode = totp.generate({ timestamp: currentTimestamp });
+            const nextCode = totp.generate({ timestamp: currentTimestamp + 30000 });
+
+            console.log(`DEBUG: Expected codes - Previous: ${prevCode}, Current: ${currentCode}, Next: ${nextCode}`);
+            console.log(`DEBUG: Provided token: ${token}`);
+
+            // Manual validation test - check each time window
+            let manualMatch = false;
+            if (token === prevCode) {
+                console.log(`DEBUG: Token matches PREVIOUS code (${prevCode})`);
+                manualMatch = true;
+            } else if (token === currentCode) {
+                console.log(`DEBUG: Token matches CURRENT code (${currentCode})`);
+                manualMatch = true;
+            } else if (token === nextCode) {
+                console.log(`DEBUG: Token matches NEXT code (${nextCode})`);
+                manualMatch = true;
+            } else {
+                console.log(`DEBUG: Token does not match any expected codes`);
+            }
+
             const delta = totp.validate({ token: token, window: 1 });
+            console.log(`DEBUG: Validation delta result: ${delta}`);
+            console.log(`DEBUG: Manual validation result: ${manualMatch}`);
 
             if (delta !== null) {
                 user.totpEnabled = true;
@@ -143,7 +185,6 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
                 user.validationEmailCodeTimestamp = undefined;
 
                 await this.persistence.updateUserLoginStatus(user.id, user);
-                console.log(`TOTP setup confirmed successfully for ${user.email}`);
                 return { verified: true };
             } else {
                 console.log("DEBUG: TOTP verification failed");
