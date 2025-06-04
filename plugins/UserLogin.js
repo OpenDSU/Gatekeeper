@@ -989,7 +989,7 @@ async function UserLogin() {
             } else {
                 console.log("DEBUG: TOTP verification failed");
                 console.log("------------------------------------------------------------------");
-                console.log(JSON.stringify(email));
+                console.log(JSON.stringify(result));
                 console.log("------------------------------------------------------------------");
                 // Increment login attempts on failed verification
                 await incrementLoginAttempts(email);

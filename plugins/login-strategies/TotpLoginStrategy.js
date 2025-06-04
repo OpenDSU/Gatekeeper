@@ -101,6 +101,10 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
 
     async confirmTotpSetup(user, token) {
         if (!user.totpSecret) {
+            console.log("DEBUG: TOTP setup not initiated");
+            console.log("------------------------------------------------------------------");
+            console.log(JSON.stringify(user));
+            console.log("------------------------------------------------------------------");
             return { verified: false, reason: ERROR_REASONS.TOTP_SETUP_NOT_INITIATED };
         }
 
@@ -109,6 +113,11 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
         }
 
         try {
+            console.log("DEBUG: TOTP setup initiated");
+            console.log("------------------------------------------------------------------");
+            console.log(JSON.stringify(user));
+            console.log(JSON.stringify(token));
+            console.log("------------------------------------------------------------------");
             const totp = new this.otpauth.TOTP({
                 issuer: TOTP_SETTINGS.ISSUER,
                 label: user.email,
@@ -134,6 +143,10 @@ class TotpUserLoginStrategy extends UserLoginStrategyInterface {
                 await this.persistence.updateUserLoginStatus(user.id, user);
                 return { verified: true };
             } else {
+                console.log("DEBUG: TOTP verification failed");
+                console.log("------------------------------------------------------------------");
+                console.log(JSON.stringify(user));
+                console.log("------------------------------------------------------------------");
                 return { verified: false, reason: ERROR_REASONS.INVALID_TOTP_CODE };
             }
         } catch (error) {
