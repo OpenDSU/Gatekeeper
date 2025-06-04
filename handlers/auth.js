@@ -474,6 +474,10 @@ const setupTotp = async (req, res) => {
             }));
             logger.info(`TOTP setup initiated for user ${email}`);
         } else {
+            console.log("DEBUG: TOTP setup failed");
+            console.log("------------------------------------------------------------------");
+            console.log(JSON.stringify(result));
+            console.log("------------------------------------------------------------------");
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 status: STATUS.FAILED,
@@ -495,6 +499,10 @@ const enableTotp = async (req, res) => {
         const { token, email } = enableData;
 
         if (!token || !/^[0-9]{6}$/.test(token)) {
+            console.log("DEBUG: Invalid token");
+            console.log("------------------------------------------------------------------");
+            console.log(JSON.stringify(enableData));
+            console.log("------------------------------------------------------------------");
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: "Please enter a valid 6-digit code." }));
         }
@@ -520,6 +528,8 @@ const enableTotp = async (req, res) => {
             }));
             logger.info(`TOTP enabled for user ${userEmail}`);
         } else {
+            console.log("DEBUG: TOTP enablement failed");
+            console.log(JSON.stringify(result));
             res.writeHead(400, { 'Content-Type': 'application/json' });
             res.end(JSON.stringify({
                 status: STATUS.FAILED,
