@@ -160,7 +160,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             try {
                 const systemAudit = SystemAudit.getSystemAudit();
                 await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_REGISTER, {
-                    userId: userPayload.globalUserId,
+                    userID: userPayload.globalUserId,
                     publicKey: publicKey,
                 });
             } catch (auditError) {
@@ -292,7 +292,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
             await this.persistence.updateUserLoginStatus(user.id, user);
             const systemAudit = SystemAudit.getSystemAudit();
             await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_REGISTER, {
-                userId: user.globalUserId,
+                userID: user.globalUserId,
                 publicKey: newCredential.publicKey,
             });
             console.log(`Added new passkey for user ${user.email} with authenticator: ${authenticatorName}`);
@@ -355,7 +355,7 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
         try {
             const systemAudit = SystemAudit.getSystemAudit();
             await systemAudit.smartLog(AUDIT_EVENTS.PASSKEY_DELETE, {
-                userId: user.globalUserId,
+                userID: user.globalUserId,
                 publicKey: passkey.publicKey,
             });
         } catch (auditError) {
@@ -371,4 +371,4 @@ class PasskeyUserLoginStrategy extends UserLoginStrategyInterface {
     }
 }
 
-module.exports = PasskeyUserLoginStrategy; 
+module.exports = PasskeyUserLoginStrategy;
