@@ -887,10 +887,6 @@ async function UserLogin() {
     self.setupTotp = async function (email) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            console.log("DEBUG: User does not exist");
-            console.log("------------------------------------------------------------------");
-            console.log(JSON.stringify(email));
-            console.log("------------------------------------------------------------------");
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
 
@@ -899,8 +895,6 @@ async function UserLogin() {
         // Generate a new TOTP secret
         const secret = new otpauth.Secret();
         const appName = process.env.APP_NAME || 'MyApp';
-
-        console.log(`Setting up TOTP for ${email}. APP_NAME: ${appName}`);
 
         const totp = new otpauth.TOTP({
             issuer: appName,
@@ -912,7 +906,6 @@ async function UserLogin() {
         });
 
         const uri = totp.toString();
-        console.log(`Generated TOTP URI for ${email}: ${uri.substring(0, 50)}...`);
 
         // Store the secret using the strategy
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
@@ -937,10 +930,6 @@ async function UserLogin() {
     self.confirmTotpSetup = async function (email, token) {
         let userExists = await persistence.hasUserLoginStatus(email);
         if (!userExists) {
-            console.log("DEBUG: User does not exist");
-            console.log("------------------------------------------------------------------");
-            console.log(JSON.stringify(email));
-            console.log("------------------------------------------------------------------");
             return { status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS };
         }
         let user = await persistence.getUserLoginStatus(email);
@@ -949,10 +938,6 @@ async function UserLogin() {
         let now = new Date().getTime();
         if (user.loginAttempts >= maxLoginAttempts) {
             if (user.lastLoginAttempt && now < user.lastLoginAttempt + expiryTimeout) {
-                console.log("DEBUG: User has exceeded login attempts");
-                console.log("------------------------------------------------------------------");
-                console.log(JSON.stringify(email));
-                console.log("------------------------------------------------------------------");
                 return {
                     status: STATUS.FAILED,
                     reason: ERROR_REASONS.EXCEEDED_ATTEMPTS,
@@ -973,10 +958,6 @@ async function UserLogin() {
 
         const strategy = getLoginStrategy(AUTH_TYPES.TOTP, persistence);
         if (!strategy || typeof strategy.confirmTotpSetup !== 'function') {
-            console.log("DEBUG: TOTP strategy not available or invalid");
-            console.log("------------------------------------------------------------------");
-            console.log(JSON.stringify(email));
-            console.log("------------------------------------------------------------------");
             throw new Error("TOTP strategy not available or invalid.");
         }
 
@@ -992,10 +973,6 @@ async function UserLogin() {
                 }
                 return { status: STATUS.SUCCESS };
             } else {
-                console.log("DEBUG: TOTP verification failed");
-                console.log("------------------------------------------------------------------");
-                console.log(JSON.stringify(result));
-                console.log("------------------------------------------------------------------");
                 // Increment login attempts on failed verification
                 await incrementLoginAttempts(email);
                 return { status: STATUS.FAILED, reason: result.reason || ERROR_REASONS.INVALID_TOTP_CODE };

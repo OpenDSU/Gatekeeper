@@ -499,10 +499,6 @@ const enableTotp = async (req, res) => {
         const { token, email } = enableData;
 
         if (!token || !/^[0-9]{6}$/.test(token)) {
-            console.log("DEBUG: Invalid token");
-            console.log("------------------------------------------------------------------");
-            console.log(JSON.stringify(enableData));
-            console.log("------------------------------------------------------------------");
             res.writeHead(400, { 'Content-Type': 'application/json' });
             return res.end(JSON.stringify({ error: "Please enter a valid 6-digit code." }));
         }
