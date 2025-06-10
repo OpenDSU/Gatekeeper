@@ -4,7 +4,7 @@
   "description": "",
   "scripts": {
     "preinstall": "rm -rf Persisto && git clone https://github.com/OpenDSU/Persisto.git",
-    "postinstall": "rm -rf authenticator && git clone https://github.com/OpenDSU/authenticator.git && cd authenticator && npm install"
+    "postinstall": "node postinstall.js"
   },
   "repository": {
     "type": "git",
