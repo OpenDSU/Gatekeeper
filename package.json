@@ -4,7 +4,7 @@
     "description": "",
     "scripts": {
         "preinstall": "rm -rf Persisto && git clone https://github.com/OpenDSU/Persisto.git",
-        "postinstall": "rm -rf authenticator && git clone https://github.com/OpenDSU/authenticator.git && cd authenticator && npm install"
+        "postinstall": "rm -rf authenticator && git clone https://github.com/OpenDSU/authenticator.git && cd authenticator && npm install && cd .. && rm -rf AdminPlugin && git clone https://github.com/AssistOS-AI/AdminPlugin.git"
     },
     "repository": {
         "type": "git",
@@ -17,7 +17,6 @@
     },
     "homepage": "https://github.com/OpenDSU/Gatekeeper.git#readme",
     "dependencies": {
-        "AdminPlugin": "git+https://github.com/AssistOS-AI/AdminPlugin.git",
         "EmailPlugin": "git+https://github.com/AssistOS-AI/EmailPlugin.git"
     }
 }

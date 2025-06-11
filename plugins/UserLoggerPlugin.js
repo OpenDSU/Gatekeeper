@@ -6,8 +6,10 @@ const systemAudit = SystemAudit.getSystemAudit();
 
 async function UserLoggerPlugin() {
     let self = {};
-    self.getUserLogs = async function (userID) {
-        let activity = await systemAudit.getUserLogs(userID);
+    self.getUserLogs = async function (email) {
+        let persistence = $$.loadPlugin("StandardPersistence");
+        let user = await persistence.getUserLoginStatus(email);
+        let activity = await systemAudit.getUserLogs(user.globalUserId);
         return activity.split(/\r?\n/);
     }
     return self;
