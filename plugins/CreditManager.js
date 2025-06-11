@@ -5,7 +5,7 @@ const {AUTH_TYPES} = require("../constants/authConstants");
 async function CreditManager() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
-    let AppSpecificPlugin = await $$.loadPlugin("AppSpecificPlugin");
+    let adminPlugin = await $$.loadPlugin("AdminPlugin");
     let tickInterval = undefined;
 
     self.safeTransfer = function (amount, from, to) {
@@ -97,7 +97,7 @@ async function CreditManager() {
             lockedAmountUntilValidation: 0,
             lockedAmountForInvitingUser: 0
         });
-        await AppSpecificPlugin.rewardUser(user.id, referrerId);
+        await adminPlugin.rewardUser(user.id, referrerId);
         return user;
     }
 
@@ -203,6 +203,6 @@ module.exports = {
         }
     },
     getDependencies: function () {
-        return ["StandardPersistence", "AppSpecificPlugin"];
+        return ["StandardPersistence", "AdminPlugin"];
     }
 }

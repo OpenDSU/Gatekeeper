@@ -17,7 +17,7 @@
     },
     "homepage": "https://github.com/OpenDSU/Gatekeeper.git#readme",
     "dependencies": {
-        "AdminComponent": "git+https://github.com/AssistOS-AI/AdminComponent.git",
+        "AdminPlugin": "git+https://github.com/AssistOS-AI/AdminPlugin.git",
         "EmailPlugin": "git+https://github.com/AssistOS-AI/EmailPlugin.git"
     }
 }
