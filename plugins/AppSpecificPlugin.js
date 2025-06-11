@@ -1,1 +1,1 @@
-module.exports = require('../AdminComponent/AppSpecificPlugin.js');
+module.exports = require('AdminComponent');
