@@ -12,7 +12,8 @@ async function createStandardPersistencePlugin() {
             sessionIds: "array",
             userInfo: "object",
             lastLoginAttempt: "string",
-            validationEmailCodeTimestamp: "string"
+            validationEmailCodeTimestamp: "string",
+            role: "string"
         },
         session: {
             userLoginId: "string",

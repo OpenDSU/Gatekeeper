@@ -1,24 +1,23 @@
 {
-  "name": "Gatekeeper",
-  "version": "v1.0.0",
-  "description": "",
-  "scripts": {
-    "preinstall": "rm -rf Persisto && git clone https://github.com/OpenDSU/Persisto.git",
-    "postinstall": "node postinstall.js"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/OpenDSU/Gatekeeper.git"
-  },
-  "author": "",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/OpenDSU/Gatekeeper.git/issues"
-  },
-  "homepage": "https://github.com/OpenDSU/Gatekeeper.git#readme",
-  "dependencies": {
-    "@sendgrid/mail": "8.1.3",
-    "debug": "^4.4.0",
-    "qrcode-generator": "^1.4.4"
-  }
+    "name": "Gatekeeper",
+    "version": "v1.0.0",
+    "description": "",
+    "scripts": {
+        "preinstall": "rm -rf Persisto && git clone https://github.com/OpenDSU/Persisto.git",
+        "postinstall": "rm -rf authenticator && git clone https://github.com/OpenDSU/authenticator.git && cd authenticator && npm install"
+    },
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/OpenDSU/Gatekeeper.git"
+    },
+    "author": "",
+    "license": "MIT",
+    "bugs": {
+        "url": "https://github.com/OpenDSU/Gatekeeper.git/issues"
+    },
+    "homepage": "https://github.com/OpenDSU/Gatekeeper.git#readme",
+    "dependencies": {
+        "AdminComponent": "git+https://github.com/AssistOS-AI/AdminComponent.git",
+        "EmailPlugin": "git+https://github.com/AssistOS-AI/EmailPlugin.git"
+    }
 }

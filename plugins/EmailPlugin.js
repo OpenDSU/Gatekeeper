@@ -1,1 +1,1 @@
-module.exports = require('../EmailPlugin/EmailPlugin.js');
+module.exports = require('EmailPlugin');
