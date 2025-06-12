@@ -1,1 +1,1 @@
-module.exports = require('AdminPlugin/AdminPlugin.js');
+module.exports = require('../AdminPlugin/AdminPlugin.js');
