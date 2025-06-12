@@ -12,6 +12,10 @@ async function UserLoggerPlugin() {
         let activity = await systemAudit.getUserLogs(user.globalUserId);
         return activity.split(/\r?\n/);
     }
+
+    self.userLog = async function (userId, log) {
+        await systemAudit.userLog(userId, log);
+    }
     return self;
 }
 
