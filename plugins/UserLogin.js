@@ -1,7 +1,7 @@
 const { generateId, generateWalletKey, getLoginStrategy } = require('../utils/pluginUtils');
 const expiryTimeout = 5 * 60 * 1000;
 const maxLoginAttempts = 5;
-
+const constants = require('../utils/constants.js');
 const sessionCache = new Map();
 
 // Temporary cache for validation codes for non-existent users
@@ -53,7 +53,8 @@ async function UserLogin() {
             validationEmailCode: undefined,
             validationEmailCodeTimestamp: undefined,
             loginAttempts: 0,
-            lastLoginAttempt: null
+            lastLoginAttempt: null,
+            role: constants.ROLES.USER,
         };
 
         await strategy.createUser(userPayload, null);

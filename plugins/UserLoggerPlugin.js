@@ -3,7 +3,7 @@ const logsFolder = process.env.LOGS_FOLDER;
 const auditFolder = process.env.AUDIT_FOLDER;
 const flushInterval = process.env.FLUSH_INTERVAL || 1;
 const systemAudit = SystemAudit.getSystemAudit();
-
+const roles = require("../utils/constants.js").ROLES;
 async function UserLoggerPlugin() {
     let self = {};
     self.getUserLogs = async function (email) {
@@ -20,7 +20,15 @@ async function UserLoggerPlugin() {
 }
 
 let singletonInstance = undefined;
-
+async function getUserRole(email) {
+    let persistence = $$.loadPlugin("StandardPersistence");
+    let userExists = await persistence.hasUserLoginStatus(email);
+    if(!userExists){
+        return false;
+    }
+    let user = await persistence.getUserLoginStatus(email);
+    return user.role;
+}
 module.exports = {
     getInstance: async function () {
         if (!singletonInstance) {
@@ -35,7 +43,11 @@ module.exports = {
                     if (globalUserId === args[0]) {
                         return true;
                     }
-                    return false;
+                    let role = await getUserRole(email);
+                    if (!role) {
+                        return false;
+                    }
+                    return role === roles.ADMIN;
                 default:
                     return false;
             }

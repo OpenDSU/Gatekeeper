@@ -1,7 +1,7 @@
 const process = require("process");
 const {generateWalletKey, getLoginStrategy} = require("../utils/pluginUtils");
 const {AUTH_TYPES} = require("../constants/authConstants");
-
+const constants = require("../utils/constants.js");
 async function CreditManager() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
@@ -57,7 +57,8 @@ async function CreditManager() {
             validationEmailCode: undefined,
             validationEmailCodeTimestamp: undefined,
             loginAttempts: 0,
-            lastLoginAttempt: null
+            lastLoginAttempt: null,
+            role: constants.ROLES.ADMIN
         };
         await strategy.createUser(userPayload);
 

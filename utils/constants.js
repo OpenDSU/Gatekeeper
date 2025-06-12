@@ -4,5 +4,10 @@ module.exports = {
     CREDIT_MANAGER: "CreditManager",
     EMAIL_PLUGIN: "EmailPlugin",
     AUDIT_PLUGIN: "AuditPlugin",
-    USER_LOGGER: "UserLoggerPlugin"
+    USER_LOGGER: "UserLoggerPlugin",
+    ROLES: {
+        "ADMIN": "admin",
+        "MARKETING": "marketing",
+        "USER": "user"
+    }
 }
