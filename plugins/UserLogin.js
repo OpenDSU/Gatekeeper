@@ -383,7 +383,7 @@ async function UserLogin() {
                     await EmailPlugin.sendEmail(
                         null, // no userId for new users
                         email,
-                        process.env.SENDGRID_SENDER_EMAIL,
+                        process.env.APP_SENDER_EMAIL,
                         "Your authentication code",
                         `Your authentication code is: ${code}`,
                         `Your authentication code is: <strong>${code}</strong>`
@@ -429,7 +429,7 @@ async function UserLogin() {
                 await EmailPlugin.sendEmail(
                     user.globalUserId,
                     email,
-                    process.env.SENDGRID_SENDER_EMAIL,
+                    process.env.APP_SENDER_EMAIL,
                     "Your authentication code",
                     `Your authentication code is: ${result.code}`,
                     `Your authentication code is: <strong>${result.code}</strong>`
