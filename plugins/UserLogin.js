@@ -67,7 +67,7 @@ async function UserLogin() {
 
         // Track this registration attempt
         incrementRegistrationAttempts(email);
-
+        console.log(constants.USER_CREATED, user);
         return user;
     }
 

@@ -9,5 +9,10 @@ module.exports = {
         "ADMIN": "admin",
         "MARKETING": "marketing",
         "USER": "user"
-    }
+    },
+    USER_CREATED: "USER_CREATED",
+    USER_LOGGED_IN: "USER_LOGGED_IN",
+    USER_LOGGED_OUT: "USER_LOGGED_OUT",
+    USER_LOGGED_IN_FAILED: "USER_LOGGED_IN_FAILED",
+    USER_LOGGED_OUT_FAILED: "USER_LOGGED_OUT_FAILED"
 }
