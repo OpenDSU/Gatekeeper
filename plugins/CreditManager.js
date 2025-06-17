@@ -5,7 +5,7 @@ const constants = require("../utils/constants.js");
 async function CreditManager() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
-    let adminPlugin = await $$.loadPlugin("AdminPlugin");
+    let rewardPlugin = await $$.loadPlugin("RewardExchangePlugin");
     let tickInterval = undefined;
 
     self.safeTransfer = function (amount, from, to) {
@@ -98,7 +98,7 @@ async function CreditManager() {
             lockedAmountUntilValidation: 0,
             lockedAmountForInvitingUser: 0
         });
-        await adminPlugin.rewardUser(user.id, referrerId);
+        await rewardPlugin.rewardUser(user.id, referrerId);
         return user;
     }
 
@@ -204,6 +204,6 @@ module.exports = {
         }
     },
     getDependencies: function () {
-        return ["StandardPersistence", "AdminPlugin"];
+        return ["StandardPersistence", "RewardExchangePlugin"];
     }
 }
