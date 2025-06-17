@@ -510,6 +510,7 @@ async function UserLogin() {
         const userInfoPayload = {
             ...(user.userInfo || {}),
             email: user.email,
+            globalUserId: user.globalUserId,
             authTypes: user.authTypes,
             totpEnabled: user.totpEnabled,
             totpPendingSetup: user.totpPendingSetup,
