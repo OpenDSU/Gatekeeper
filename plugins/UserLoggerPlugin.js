@@ -40,7 +40,7 @@ module.exports = {
         return async function (globalUserId, email, command, ...args) {
             switch (command) {
                 case "getUserLogs":
-                    if (globalUserId === args[0]) {
+                    if (email === args[0]) {
                         return true;
                     }
                     let role = await getUserRole(email);
