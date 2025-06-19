@@ -3,7 +3,7 @@
     "version": "v1.0.0",
     "description": "",
     "scripts": {
-        "preinstall": "rm -rf Persisto && git clone https://github.com/OpenDSU/Persisto.git",
+        "preinstall": "rm -rf Persisto && git clone https://github.com/OpenDSU/Persisto.git && cd Persisto && npm install",
         "postinstall": "rm -rf authenticator && git clone https://github.com/OpenDSU/authenticator.git && cd authenticator && npm install && cd .. && rm -rf AdminPlugin && git clone https://github.com/AssistOS-AI/AdminPlugin.git"
     },
     "repository": {
