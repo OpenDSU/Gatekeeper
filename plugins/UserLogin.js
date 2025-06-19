@@ -109,6 +109,7 @@ async function UserLogin() {
                     tempCodeCache.delete(email);
                     let user = await createUser(email, tempData.name, tempData.referrerId);
 
+                    console.log(constants.USER_LOGGED_IN, user.globalUserId);
                     return {
                         status: STATUS.SUCCESS,
                         sessionId: user.sessionId,
@@ -164,6 +165,7 @@ async function UserLogin() {
             }
             let sessionId = await createSessionForUser(user);
 
+            console.log(constants.USER_LOGGED_IN, user.globalUserId);
             return {
                 status: STATUS.SUCCESS,
                 sessionId: sessionId,
@@ -220,6 +222,7 @@ async function UserLogin() {
             }
             let sessionId = await createSessionForUser(user);
 
+            console.log(constants.USER_LOGGED_IN, user.globalUserId);
             return {
                 status: STATUS.SUCCESS,
                 sessionId: sessionId,
@@ -276,6 +279,7 @@ async function UserLogin() {
             }
             let sessionId = await createSessionForUser(user);
 
+            console.log(constants.USER_LOGGED_IN, user.globalUserId);
             return {
                 status: STATUS.SUCCESS,
                 sessionId: sessionId,
@@ -487,8 +491,30 @@ async function UserLogin() {
 
     self.logout = async function (sessionId) {
         try {
+            // Get user info before deleting session for logging
+            let userId = null;
+            if (sessionCache.has(sessionId)) {
+                userId = sessionCache.get(sessionId).globalUserId;
+            } else {
+                // Try to get from persistence if not in cache
+                let sessionExists = await persistence.hasSession(sessionId);
+                if (sessionExists) {
+                    let session = await persistence.getSession(sessionId);
+                    let userExists = await persistence.hasUserLoginStatus(session.userLoginId);
+                    if (userExists) {
+                        let user = await persistence.getUserLoginStatus(session.userLoginId);
+                        userId = user.globalUserId;
+                    }
+                }
+            }
+
             await persistence.deleteSession(sessionId);
             sessionCache.delete(sessionId);
+            
+            if (userId) {
+                console.log(constants.USER_LOGGED_OUT, userId);
+            }
+            
             return { status: STATUS.SUCCESS };
         } catch (e) {
             console.error(`Error deleting session ${sessionId}:`, e);
