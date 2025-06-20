@@ -10,6 +10,11 @@ module.exports = {
         "MARKETING": "marketing",
         "USER": "user"
     },
+    TICKET_STATUS: {
+        PENDING: "pending",
+        CLOSED: "closed",
+        REJECTED: "rejected"
+    },
     USER_CREATED: "USER_CREATED",
     USER_LOGGED_IN: "USER_LOGGED_IN",
     USER_LOGGED_OUT: "USER_LOGGED_OUT",
