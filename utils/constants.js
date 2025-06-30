@@ -6,7 +6,7 @@ module.exports = {
     AUDIT_PLUGIN: "AuditPlugin",
     USER_LOGGER: "UserLoggerPlugin",
     ROLES: {
-        "ADMIN": "admin",
+        "ADMIN": "sysadmin",
         "MARKETING": "marketing",
         "USER": "user"
     },
