@@ -2,6 +2,7 @@ const process = require("process");
 const {generateWalletKey, getLoginStrategy} = require("../utils/pluginUtils");
 const {AUTH_TYPES} = require("../constants/authConstants");
 const constants = require("../utils/constants.js");
+
 async function CreditManager() {
     let self = {};
     let persistence = await $$.loadPlugin("StandardPersistence");
@@ -80,10 +81,17 @@ async function CreditManager() {
         await setUpFounderLogin(founder.email, founder.name, founder.id);
         await persistence.rewardFounder(founder.id, amount / founderRewardPercentage, "Founder reward");
     }
+
     try {
         // TODO: OutfitinityGift specific initialization, move specific logic to a separate module
         if (!await persistence.hasUserLoginStatus(process.env.SYSADMIN_EMAIL)) {
             await mint(process.env.SYSTEM_MINT_AMOUNT, process.env.FOUNDER_PERCENTAGE);
+        }
+        if (await persistence.hasUserLoginStatus(process.env.SYSADMIN_EMAIL)) {
+            let userStatus = await persistence.getUserLoginStatus(process.env.SYSADMIN_EMAIL);
+            if (userStatus.role !== constants.ROLES.ADMIN) {
+                await persistence.updateUserLoginStatus(process.env.SYSADMIN_EMAIL, {role: constants.ROLES.ADMIN});
+            }
         }
     } catch (error) {
         console.warn("Error during initialization of CreditManager: ", error.message);
