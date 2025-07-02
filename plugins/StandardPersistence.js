@@ -29,6 +29,8 @@ async function createStandardPersistencePlugin() {
     await persistence.createIndex("userValidation", "userId");
     await persistence.createIndex("userLoginStatus", "email");
     await persistence.createIndex("session", "sessionId");
+    await persistence.createGrouping("RoleGrouping", "userLoginStatus", "role");
+
 
     return persistence;
 }
