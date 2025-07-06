@@ -1013,6 +1013,10 @@ async function UserLogin() {
         }
     }
 
+    self.getPublicMethods = function () {
+        return ["loginWithEmailCode", "loginWithPasskey", "loginWithTotp", "requestEmailCode", "getPublicAuthInfo", "generatePasskeyChallenge", "setupTotp", "confirmTotpSetup", "deleteTotp", "deletePasskey", "getAuthInfo", "getUserInfo", "setUserInfo", "addPasskey"];
+    }
+
     return self;
 }
 

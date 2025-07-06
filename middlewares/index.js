@@ -5,36 +5,35 @@ const process = require("process");
 const { securityMiddleware } = require("./securityMiddleware");
 
 async function authenticationMiddleware(req, res, next) {
+    let openDSU = require("opendsu");
+    const system = openDSU.loadApi("system");
+    const baseURL = system.getBaseURL();
+
     let cookies = getCookies(req);
     req.sessionId = cookies['sessionId'];
 
-    const skipAuth = ["ready"];
+    const skipAuth = ["ready", "getPublicMethods"];
     const containsSubstring = skipAuth.some(substring => req.url.indexOf(substring) !== -1);
     if (containsSubstring) {
         return next();
     }
-
-    const whitelistedCommands = ["loginWithEmailCode", "loginWithPasskey", "loginWithTotp", "requestEmailCode", "getPublicAuthInfo", "generatePasskeyChallenge"];
+    let parsedBody;
     if (req.body) {
-        let parsedBody = JSON.parse(req.body);
-        if (parsedBody.name && whitelistedCommands.some(command => parsedBody.name.indexOf(command) !== -1)) {
-            return next();
-        }
-    }
-
-    if (req.body) {
-        let parsedBody = JSON.parse(req.body);
+        parsedBody = JSON.parse(req.body);
         if (parsedBody.options.authToken) {
             if (parsedBody.options.authToken === process.env.SERVERLESS_AUTH_SECRET) {
                 return next();
             }
         }
     }
+    let publicMethods = await fetch(`${baseURL}/proxy/getPublicMethods/${process.env.SERVERLESS_ID}/${parsedBody.pluginName}`);
+    let publicMethodsData = await publicMethods.json();
+    if (publicMethodsData.result.includes(parsedBody.name)) {
+        return next();
+    }
 
-    let openDSU = require("opendsu");
-    const system = openDSU.loadApi("system");
-    const baseURL = system.getBaseURL();
     let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", { authToken: process.env.SERVERLESS_AUTH_SECRET });
+
     let response = await client.checkSessionId(req.sessionId);
     if (response.status === STATUS.SUCCESS) {
         req.userId = response.globalUserId;

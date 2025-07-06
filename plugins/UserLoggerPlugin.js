@@ -1,7 +1,4 @@
 const SystemAudit = require('../../Gatekeeper/Persisto/src/audit/SystemAudit.cjs');
-const logsFolder = process.env.LOGS_FOLDER;
-const auditFolder = process.env.AUDIT_FOLDER;
-const flushInterval = process.env.FLUSH_INTERVAL || 1;
 const systemAudit = SystemAudit.getSystemAudit();
 const roles = require("../utils/constants.js").ROLES;
 async function UserLoggerPlugin() {
@@ -15,6 +12,9 @@ async function UserLoggerPlugin() {
 
     self.userLog = async function (userId, log) {
         await systemAudit.userLog(userId, log);
+    }
+    self.getPublicMethods = function () {
+        return [];
     }
     return self;
 }

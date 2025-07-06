@@ -170,6 +170,10 @@ async function CreditManager() {
         }
     }
 
+    self.getPublicMethods = function () {
+        return [];
+    }
+
     return self;
 }
 
