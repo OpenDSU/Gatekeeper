@@ -5,7 +5,7 @@ const system = openDSU.loadApi("system");
 const baseURL = system.getBaseURL();
 const utils = require("../utils/apiUtils");
 const constants = require("../utils/constants");
-const { STATUS, ERROR_REASONS } = require('../constants/authConstants');
+const {STATUS, ERROR_REASONS} = require('../constants/authConstants');
 
 // Shared challenge cache for passkey registration
 const challengeCache = new Map();
@@ -14,7 +14,7 @@ async function initAPIClient(req, pluginName) {
     const userId = req.userId;
     const sessionId = req.sessionId || undefined;
     return await require("opendsu").loadAPI("serverless").createServerlessAPIClient(
-        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", { sessionId: sessionId, email: req.email }
+        userId, baseURL, process.env.SERVERLESS_ID, pluginName, "", {sessionId: sessionId, email: req.email}
     );
 }
 
@@ -31,9 +31,9 @@ const sendCodeByEmail = async function (req, res) {
         email = parsedData.email;
         utils.validateEmail(email);
     } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.writeHead(400, {'Content-Type': 'application/json'});
         logger.debug(`Invalid data for sendCodeByEmail: ${e.message}`);
-        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
     }
 
     req.email = email;
@@ -43,22 +43,22 @@ const sendCodeByEmail = async function (req, res) {
         const result = await userLoginClient.requestEmailCode(email, parsedData?.name, parsedData?.referrerId);
 
         if (result.status === STATUS.SUCCESS) {
-            let responseMessage = { status: STATUS.SUCCESS };
+            let responseMessage = {status: STATUS.SUCCESS};
 
             // Include code in response only for development or localhost
             if (process.env.NODE_ENV === 'development' || req.headers.origin === "http://localhost:8080") {
                 responseMessage.code = result.code;
             }
 
-            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.writeHead(200, {'Content-Type': 'application/json'});
             return res.end(JSON.stringify(responseMessage));
         } else {
             throw new Error(result.reason || "Failed to generate email code");
         }
     } catch (e) {
         logger.error(`Error during sendCodeByEmail for ${email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
@@ -75,9 +75,9 @@ const loginWithEmailCode = async function (req, res) {
         }
         parsedData.code = parsedData.code.trim();
     } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.writeHead(400, {'Content-Type': 'application/json'});
         logger.debug(`Invalid data for loginWithEmailCode: ${e.message}`);
-        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
     }
 
     req.email = email;
@@ -89,29 +89,29 @@ const loginWithEmailCode = async function (req, res) {
         if (result.status === STATUS.SUCCESS) {
             let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
             res.setHeader('Set-Cookie', cookies);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ operation: "success" }));
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({userId: result.userId, email: result.email}));
             logger.info(`User ${email} logged in successfully (Email Code).`);
         } else {
             const statusCode = (result.reason === "exceeded number of attempts") ? 403 : 401;
-            res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+            res.writeHead(statusCode, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({
                 error: result.reason,
-                details: { lockTime: result.lockTime }
+                details: {lockTime: result.lockTime}
             }));
             logger.warn(`User ${email} email code login failed: ${result.reason}`);
         }
     } catch (e) {
         logger.error(`Error during loginWithEmailCode for ${email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
 const generatePasskeySetupOptions = async (req, res) => {
     if (!req.userId || !req.email) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: "Authentication required." }));
+        res.writeHead(401, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: "Authentication required."}));
     }
 
     const email = decodeURIComponent(req.email);
@@ -145,8 +145,8 @@ const generatePasskeySetupOptions = async (req, res) => {
                 displayName: email,
             },
             pubKeyCredParams: [
-                { type: 'public-key', alg: -7 }, // ES256
-                { type: 'public-key', alg: -257 }, // RS256
+                {type: 'public-key', alg: -7}, // ES256
+                {type: 'public-key', alg: -257}, // RS256
             ],
             authenticatorSelection: {
                 requireResidentKey: false,
@@ -156,7 +156,7 @@ const generatePasskeySetupOptions = async (req, res) => {
             attestation: 'direct'
         };
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({
             status: "success",
             publicKeyCredentialCreationOptions: JSON.stringify(publicKeyCredentialCreationOptions),
@@ -165,8 +165,8 @@ const generatePasskeySetupOptions = async (req, res) => {
 
     } catch (e) {
         logger.error(`Error during generatePasskeySetupOptions for ${email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
@@ -181,9 +181,9 @@ const loginWithPasskey = async function (req, res) {
             throw new Error("Invalid or incomplete passkey assertion data or missing challengeKey.");
         }
     } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.writeHead(400, {'Content-Type': 'application/json'});
         logger.debug(`Invalid data for loginWithPasskey: ${e.message}`);
-        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
     }
 
     req.email = parsedData.email;
@@ -195,22 +195,22 @@ const loginWithPasskey = async function (req, res) {
         if (result.status === STATUS.SUCCESS) {
             let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
             res.setHeader('Set-Cookie', cookies);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ operation: "success" }));
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({userId: result.userId, email: result.email}));
             logger.info(`User ${parsedData.email} logged in successfully (Passkey).`);
         } else {
             const statusCode = (result.reason === "exceeded number of attempts") ? 403 : 401;
-            res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+            res.writeHead(statusCode, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({
                 error: result.reason,
-                details: { lockTime: result.lockTime }
+                details: {lockTime: result.lockTime}
             }));
             logger.warn(`User ${parsedData.email} passkey login failed: ${result.reason}`);
         }
     } catch (e) {
         logger.error(`Error during loginWithPasskey for ${parsedData.email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
@@ -225,9 +225,9 @@ const loginWithTotp = async function (req, res) {
             throw new Error("Invalid or missing TOTP token.");
         }
     } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.writeHead(400, {'Content-Type': 'application/json'});
         logger.debug(`Invalid data for loginWithTotp: ${e.message}`);
-        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
     }
 
     req.email = parsedData.email;
@@ -239,22 +239,22 @@ const loginWithTotp = async function (req, res) {
         if (result.status === STATUS.SUCCESS) {
             let cookies = utils.createAuthCookies(result.userId, result.email, result.walletKey, result.sessionId);
             res.setHeader('Set-Cookie', cookies);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ operation: "success" }));
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({userId: result.userId, email: result.email}));
             logger.info(`User ${parsedData.email} logged in successfully (TOTP).`);
         } else {
             const statusCode = (result.reason === "exceeded number of attempts") ? 403 : 401;
-            res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+            res.writeHead(statusCode, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({
                 error: result.reason,
-                details: { lockTime: result.lockTime }
+                details: {lockTime: result.lockTime}
             }));
             logger.warn(`User ${parsedData.email} TOTP login failed: ${result.reason}`);
         }
     } catch (e) {
         logger.error(`Error during loginWithTotp for ${parsedData.email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
@@ -262,8 +262,8 @@ const loginWithTotp = async function (req, res) {
 
 const logout = async (req, res) => {
     if (!req.sessionId) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: "Session information missing." }));
+        res.writeHead(400, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: "Session information missing."}));
     }
 
     try {
@@ -276,8 +276,8 @@ const logout = async (req, res) => {
             clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
         }
         res.setHeader('Set-Cookie', clearedCookies);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ operation: "success" }));
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({operation: "success"}));
         logger.info(`User ${req.email || req.userId || 'Unknown'} logged out.`);
     } catch (e) {
         logger.error(`Error during logout: ${e.message}`, e.stack);
@@ -288,14 +288,14 @@ const logout = async (req, res) => {
             clearedCookies.push(`${cookie}=; HttpOnly; Secure; SameSite=Strict; Max-Age=0; Path=/`);
         }
         res.setHeader('Set-Cookie', clearedCookies);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Logout operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Logout operation failed: ${e.message}`}));
     }
 }
 
 const getUserInfo = async (req, res) => {
     try {
-        let { email } = req.query;
+        let {email} = req.query;
         if (!email) {
             email = req.email;
         }
@@ -304,18 +304,18 @@ const getUserInfo = async (req, res) => {
 
         let client = await initAPIClient(req, constants.USER_PLUGIN);
         let result = await client.getUserInfo(email);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify(result.userInfo));
     } catch (e) {
         logger.debug(e.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: e.message }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: e.message}));
     }
 }
 
 const setUserInfo = async (req, res) => {
     try {
-        let { email } = req.query;
+        let {email} = req.query;
         if (!email) {
             email = req.email;
         }
@@ -324,9 +324,9 @@ const setUserInfo = async (req, res) => {
         try {
             data = JSON.parse(req.body);
         } catch (e) {
-            res.writeHead(415, { 'Content-Type': 'application/json' });
+            res.writeHead(415, {'Content-Type': 'application/json'});
             logger.debug(e.message);
-            res.end(JSON.stringify({ error: "Wrong data" }));
+            res.end(JSON.stringify({error: "Wrong data"}));
             return;
         }
 
@@ -334,19 +334,19 @@ const setUserInfo = async (req, res) => {
         utils.validateEmail(email);
         let client = await initAPIClient(req, constants.USER_PLUGIN);
         await client.setUserInfo(email, data);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ operation: "success" }));
+        res.writeHead(200, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({operation: "success"}));
     } catch (e) {
         logger.debug(e.message);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: e.message }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: e.message}));
     }
 }
 
 const addPasskey = async (req, res) => {
     if (!req.userId || !req.email) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: "Authentication required." }));
+        res.writeHead(401, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: "Authentication required."}));
     }
 
     let requestData;
@@ -356,15 +356,15 @@ const addPasskey = async (req, res) => {
             throw new Error("Missing registrationData or challengeKey.");
         }
 
-        const { registrationData } = requestData;
+        const {registrationData} = requestData;
         if (!registrationData.id || !registrationData.rawId || !registrationData.type || !registrationData.response ||
             !registrationData.response.clientDataJSON || !registrationData.response.attestationObject) {
             throw new Error("Invalid passkey registration data structure.");
         }
     } catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.writeHead(400, {'Content-Type': 'application/json'});
         logger.debug(`Invalid data for addPasskey: ${e.message}`);
-        return res.end(JSON.stringify({ error: `Invalid request data: ${e.message}` }));
+        return res.end(JSON.stringify({error: `Invalid request data: ${e.message}`}));
     }
 
     let email = decodeURIComponent(req.email);
@@ -372,13 +372,13 @@ const addPasskey = async (req, res) => {
         // Validate challenge
         const challengeData = challengeCache.get(requestData.challengeKey);
         if (!challengeData) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: "Invalid or expired registration challenge." }));
+            res.writeHead(400, {'Content-Type': 'application/json'});
+            return res.end(JSON.stringify({error: "Invalid or expired registration challenge."}));
         }
 
         if (challengeData.email !== email || challengeData.type !== 'setup') {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: "Challenge validation failed." }));
+            res.writeHead(400, {'Content-Type': 'application/json'});
+            return res.end(JSON.stringify({error: "Challenge validation failed."}));
         }
 
         // Clean up used challenge
@@ -388,19 +388,19 @@ const addPasskey = async (req, res) => {
         let result = await client.addPasskey(email, requestData.registrationData);
 
         if (result.status === STATUS.SUCCESS) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ operation: "success", credentialId: result.credentialId }));
+            res.writeHead(200, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({operation: "success", credentialId: result.credentialId}));
             logger.info(`Successfully registered new passkey for user ${email}`);
         } else {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: result.reason || "Failed to register new passkey." }));
+            res.writeHead(400, {'Content-Type': 'application/json'});
+            res.end(JSON.stringify({error: result.reason || "Failed to register new passkey."}));
             logger.warn(`Failed to register new passkey for user ${email}: ${result.reason}`);
         }
     } catch (e) {
         logger.error(`Error during addPasskey for ${email}: ${e.message}`, e.stack);
         const statusCode = e.message.includes("already registered") ? 409 : 500;
-        res.writeHead(statusCode, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(statusCode, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
@@ -439,7 +439,7 @@ const deletePasskey = async function (req, res) {
             }));
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             message: result.message || "Passkey successfully deleted"
@@ -456,8 +456,8 @@ const deletePasskey = async function (req, res) {
 
 const setupTotp = async (req, res) => {
     if (!req.userId || !req.email) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: "Authentication required." }));
+        res.writeHead(401, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: "Authentication required."}));
     }
 
     try {
@@ -466,7 +466,7 @@ const setupTotp = async (req, res) => {
         const result = await client.setupTotp(email);
 
         if (result.status === STATUS.SUCCESS) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({
                 status: STATUS.SUCCESS,
                 uri: result.uri,
@@ -478,7 +478,7 @@ const setupTotp = async (req, res) => {
             console.log("------------------------------------------------------------------");
             console.log(JSON.stringify(result));
             console.log("------------------------------------------------------------------");
-            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.writeHead(400, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({
                 status: STATUS.FAILED,
                 error: result.reason || "Failed to set up TOTP"
@@ -486,8 +486,8 @@ const setupTotp = async (req, res) => {
         }
     } catch (e) {
         logger.error(`Error during TOTP setup for ${req.email}: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
@@ -496,19 +496,19 @@ const enableTotp = async (req, res) => {
     try {
         enableData = JSON.parse(req.body);
 
-        const { token, email } = enableData;
+        const {token, email} = enableData;
 
         if (!token || !/^[0-9]{6}$/.test(token)) {
-            res.writeHead(400, { 'Content-Type': 'application/json' });
-            return res.end(JSON.stringify({ error: "Please enter a valid 6-digit code." }));
+            res.writeHead(400, {'Content-Type': 'application/json'});
+            return res.end(JSON.stringify({error: "Please enter a valid 6-digit code."}));
         }
 
         let userEmail = email;
 
         if (!userEmail) {
             if (!req.email) {
-                res.writeHead(401, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ error: "Authentication required." }));
+                res.writeHead(401, {'Content-Type': 'application/json'});
+                return res.end(JSON.stringify({error: "Authentication required."}));
             }
             userEmail = decodeURIComponent(req.email);
         }
@@ -517,7 +517,7 @@ const enableTotp = async (req, res) => {
         const result = await client.confirmTotpSetup(userEmail, token);
 
         if (result.status === STATUS.SUCCESS) {
-            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.writeHead(200, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({
                 status: STATUS.SUCCESS,
                 message: "TOTP enabled successfully"
@@ -526,7 +526,7 @@ const enableTotp = async (req, res) => {
         } else {
             console.log("DEBUG: TOTP enablement failed");
             console.log(JSON.stringify(result));
-            res.writeHead(400, { 'Content-Type': 'application/json' });
+            res.writeHead(400, {'Content-Type': 'application/json'});
             res.end(JSON.stringify({
                 status: STATUS.FAILED,
                 error: result.reason || "Invalid verification code"
@@ -534,8 +534,8 @@ const enableTotp = async (req, res) => {
         }
     } catch (e) {
         logger.error(`Error during TOTP enablement: ${e.message}`, e.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: `Operation failed: ${e.message}` }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        res.end(JSON.stringify({error: `Operation failed: ${e.message}`}));
     }
 }
 
@@ -566,7 +566,7 @@ const deleteTotp = async function (req, res) {
             }));
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             message: result.message || "TOTP authentication successfully deleted"
@@ -604,7 +604,7 @@ const getAuthInfo = async function (req, res) {
             throw new Error(result.reason || "Failed to get authentication information");
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             userExists: result.userExists,
@@ -615,8 +615,8 @@ const getAuthInfo = async function (req, res) {
 
     } catch (err) {
         logger.error(`Error in getAuthInfo for ${req.params?.email || 'unknown'}: ${err.message}`, err.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: err.message }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: err.message}));
     }
 }
 
@@ -640,7 +640,7 @@ const getPublicAuthInfo = async function (req, res) {
             throw new Error(result.reason || "Failed to get authentication types");
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             userExists: result.userExists,
@@ -649,8 +649,8 @@ const getPublicAuthInfo = async function (req, res) {
 
     } catch (err) {
         logger.error(`Error in getPublicAuthInfo for ${req.params?.email || 'unknown'}: ${err.message}`, err.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: err.message }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: err.message}));
     }
 }
 
@@ -680,7 +680,7 @@ const generatePasskeyLoginOptions = async function (req, res) {
             }));
         }
 
-        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.writeHead(200, {'Content-Type': 'application/json'});
         res.end(JSON.stringify({
             status: STATUS.SUCCESS,
             publicKeyCredentialRequestOptions: result.publicKeyCredentialRequestOptions,
@@ -689,8 +689,8 @@ const generatePasskeyLoginOptions = async function (req, res) {
 
     } catch (err) {
         logger.error(`Error in generatePasskeyLoginOptions for ${req.params.email}: ${err.message}`, err.stack);
-        res.writeHead(500, { 'Content-Type': 'application/json' });
-        return res.end(JSON.stringify({ error: err.message }));
+        res.writeHead(500, {'Content-Type': 'application/json'});
+        return res.end(JSON.stringify({error: err.message}));
     }
 }
 
