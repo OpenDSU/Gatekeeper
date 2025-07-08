@@ -10,6 +10,10 @@ module.exports = {
         "MARKETING": "marketing",
         "USER": "user"
     },
+    CONTROLLER_ROLES: {
+        "HOLDER": "holder",
+        "OWNER": "owner"
+    },
     TICKET_STATUS: {
         PENDING: "pending",
         CLOSED: "closed",
