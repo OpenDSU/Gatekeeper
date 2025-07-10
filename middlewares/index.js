@@ -26,11 +26,14 @@ async function authenticationMiddleware(req, res, next) {
             }
         }
     }
-    let publicMethods = await fetch(`${baseURL}/proxy/getPublicMethods/${process.env.SERVERLESS_ID}/${parsedBody.pluginName}`);
-    let publicMethodsData = await publicMethods.json();
-    if (publicMethodsData.result.includes(parsedBody.name)) {
-        return next();
+    if(!req.url.includes("/proxy/restart/")){
+        let publicMethods = await fetch(`${baseURL}/proxy/getPublicMethods/${process.env.SERVERLESS_ID}/${parsedBody.pluginName}`);
+        let publicMethodsData = await publicMethods.json();
+        if (publicMethodsData.result.includes(parsedBody.name)) {
+            return next();
+        }
     }
+
 
     let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", { authToken: process.env.SERVERLESS_AUTH_SECRET });
 
