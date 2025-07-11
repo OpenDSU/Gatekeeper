@@ -8,7 +8,8 @@ module.exports = {
     ROLES: {
         "ADMIN": "sysadmin",
         "MARKETING": "marketing",
-        "USER": "user"
+        "USER": "user",
+        "VALIDATED_USER": "validated_user"
     },
     CONTROLLER_ROLES: {
         "HOLDER": "holder",
