@@ -20,6 +20,7 @@ const STATUS = {
 const ERROR_REASONS = {
     // General
     ACCOUNT_NOT_EXISTS: "account doesn't exist",
+    ACCOUNT_LOCKED: "Account is locked",
     USER_NOT_EXISTS: "user doesn't exist",
     SESSION_NOT_EXISTS: "session does not exist",
     USER_SESSION_NOT_EXISTS: "user associated with session no longer exists",

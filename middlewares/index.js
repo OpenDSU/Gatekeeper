@@ -1,8 +1,8 @@
-const { STATUS } = require("../constants/authConstants");
-const { getCookies } = require("../utils/apiUtils");
+const {STATUS} = require("../constants/authConstants");
+const {getCookies} = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 const process = require("process");
-const { securityMiddleware } = require("./securityMiddleware");
+const {securityMiddleware} = require("./securityMiddleware");
 
 async function authenticationMiddleware(req, res, next) {
     let openDSU = require("opendsu");
@@ -26,7 +26,7 @@ async function authenticationMiddleware(req, res, next) {
             }
         }
     }
-    if(!req.url.includes("/proxy/restart/")){
+    if (!req.url.includes("/proxy/restart/")) {
         let publicMethods = await fetch(`${baseURL}/proxy/getPublicMethods/${process.env.SERVERLESS_ID}/${parsedBody.pluginName}`);
         let publicMethodsData = await publicMethods.json();
         if (publicMethodsData.result.includes(parsedBody.name)) {
@@ -35,21 +35,25 @@ async function authenticationMiddleware(req, res, next) {
     }
 
 
-    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", { authToken: process.env.SERVERLESS_AUTH_SECRET });
+    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", {authToken: process.env.SERVERLESS_AUTH_SECRET});
 
-    let response = await client.checkSessionId(req.sessionId);
-    if (response.status === STATUS.SUCCESS) {
-        req.userId = response.globalUserId;
-        req.email = response.email;
-        req.walletKey = response.walletKey;
-        return next();
+    if (!await client.isBlockedUser(req.sessionId)) {
+        let response = await client.checkSessionId(req.sessionId);
+        if (response.status === STATUS.SUCCESS) {
+            req.userId = response.globalUserId;
+            req.email = response.email;
+            req.walletKey = response.walletKey;
+            return next();
+        }
+        console.log("DEBUG----------: Unauthorized", JSON.stringify(response));
     }
 
-    console.log("DEBUG----------: Unauthorized", JSON.stringify(response));
+
     console.log("DEBUG----------: Unauthorized", req.sessionId, req.userId, req.email, req.walletKey);
-    res.writeHead(401, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ operation: "unauthorized" }));
+    res.writeHead(401, {'Content-Type': 'application/json'});
+    res.end(JSON.stringify({operation: "unauthorized"}));
 }
+
 function bodyReader(request, response, next) {
     let data = "";
 
