@@ -34,9 +34,8 @@ async function authenticationMiddleware(req, res, next) {
         }
     }
 
-
     let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", {authToken: process.env.SERVERLESS_AUTH_SECRET});
-
+    let statusCode = 401;
     if (!await client.isBlockedUser(req.sessionId)) {
         let response = await client.checkSessionId(req.sessionId);
         if (response.status === STATUS.SUCCESS) {
@@ -46,11 +45,12 @@ async function authenticationMiddleware(req, res, next) {
             return next();
         }
         console.log("DEBUG----------: Unauthorized", JSON.stringify(response));
+    } else {
+        statusCode = 403;
     }
 
-
     console.log("DEBUG----------: Unauthorized", req.sessionId, req.userId, req.email, req.walletKey);
-    res.writeHead(401, {'Content-Type': 'application/json'});
+    res.writeHead(statusCode, {'Content-Type': 'application/json'});
     res.end(JSON.stringify({operation: "unauthorized"}));
 }
 
