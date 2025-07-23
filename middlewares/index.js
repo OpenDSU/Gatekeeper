@@ -1,8 +1,8 @@
-const {STATUS} = require("../constants/authConstants");
-const {getCookies} = require("../utils/apiUtils");
+const { STATUS } = require("../constants/authConstants");
+const { getCookies } = require("../utils/apiUtils");
 const constants = require("../utils/constants");
 const process = require("process");
-const {securityMiddleware} = require("./securityMiddleware");
+const { securityMiddleware } = require("./securityMiddleware");
 
 async function authenticationMiddleware(req, res, next) {
     let openDSU = require("opendsu");
@@ -27,14 +27,14 @@ async function authenticationMiddleware(req, res, next) {
         }
     }
     if (!req.url.includes("/proxy/restart/")) {
-        let publicMethods = await fetch(`${baseURL}/proxy/getPublicMethods/${process.env.SERVERLESS_ID}/${parsedBody.pluginName}`);
+        let publicMethods = await fetch(`${baseURL}/proxy/getPublicMethods/${parsedBody.serverlessId}/${parsedBody.pluginName}`);
         let publicMethodsData = await publicMethods.json();
         if (publicMethodsData.result.includes(parsedBody.name)) {
             return next();
         }
     }
 
-    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", {authToken: process.env.SERVERLESS_AUTH_SECRET});
+    let client = await openDSU.loadAPI("serverless").createServerlessAPIClient("*", baseURL, process.env.SERVERLESS_ID, constants.USER_PLUGIN, "", { authToken: process.env.SERVERLESS_AUTH_SECRET, serverlessId: process.env.SERVERLESS_ID });
     let statusCode = 401;
     if (!await client.isBlockedUser(req.sessionId)) {
         let response = await client.checkSessionId(req.sessionId);
@@ -50,8 +50,8 @@ async function authenticationMiddleware(req, res, next) {
     }
 
     console.log("DEBUG----------: Unauthorized", req.sessionId, req.userId, req.email, req.walletKey);
-    res.writeHead(statusCode, {'Content-Type': 'application/json'});
-    res.end(JSON.stringify({operation: "unauthorized"}));
+    res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ operation: "unauthorized" }));
 }
 
 function bodyReader(request, response, next) {
