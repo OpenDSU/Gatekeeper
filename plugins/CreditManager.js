@@ -5,8 +5,8 @@ const constants = require("../utils/constants.js");
 
 async function CreditManager() {
     let self = {};
-    let persistence = await $$.loadPlugin("StandardPersistence");
-    let rewardPlugin = await $$.loadPlugin("RewardExchangePlugin");
+    let persistence = $$.loadPlugin("StandardPersistence");
+    let rewardPlugin = $$.loadPlugin("RewardExchangePlugin");
     let tickInterval = undefined;
 
     self.safeTransfer = function (amount, from, to) {

@@ -17,8 +17,8 @@ const otpauth = require('../authenticator/totp/otpauth/index.cjs');
 
 async function UserLogin() {
     let self = {};
-    let persistence = await $$.loadPlugin("StandardPersistence");
-    let CreditManager = await $$.loadPlugin("CreditManager");
+    let persistence = $$.loadPlugin("StandardPersistence");
+    let CreditManager = $$.loadPlugin("CreditManager");
 
     self.persistence = persistence;
 
@@ -383,7 +383,7 @@ async function UserLogin() {
             // Send email if not in development mode
             if (process.env.NODE_ENV !== 'development') {
                 try {
-                    let EmailPlugin = await $$.loadPlugin("EmailPlugin");
+                    let EmailPlugin = $$.loadPlugin("EmailPlugin");
                     await EmailPlugin.sendEmail(
                         null, // no userId for new users
                         email,
@@ -429,7 +429,7 @@ async function UserLogin() {
         // Send email if not in development mode and code generation was successful
         if (result.status === STATUS.SUCCESS && process.env.NODE_ENV !== 'development') {
             try {
-                let EmailPlugin = await $$.loadPlugin("EmailPlugin");
+                let EmailPlugin = $$.loadPlugin("EmailPlugin");
                 await EmailPlugin.sendEmail(
                     user.globalUserId,
                     email,
