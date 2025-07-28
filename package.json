@@ -4,7 +4,7 @@
     "description": "",
     "scripts": {
         "preinstall": "rm -rf Persisto && git clone https://github.com/OpenDSU/Persisto.git && cd Persisto && npm install",
-        "postinstall": "rm -rf authenticator && git clone https://github.com/OpenDSU/authenticator.git && cd authenticator && npm install && cd .. && rm -rf AdminPlugin && git clone https://github.com/AssistOS-AI/AdminPlugin.git && rm -rf TicketsPlugin && git clone https://github.com/AssistOS-AI/TicketsPlugin.git"
+        "postinstall": "rm -rf authenticator && git clone https://github.com/OpenDSU/authenticator.git && cd authenticator && npm install && cd .. && rm -rf AdminPlugin && git clone https://github.com/AssistOS-AI/AdminPlugin.git && rm -rf TicketsPlugin && git clone https://github.com/AssistOS-AI/TicketsPlugin.git && rm -rf PaymentPlugin && git clone https://github.com/AssistOS-AI/PaymentPlugin.git"
     },
     "repository": {
         "type": "git",

@@ -5,12 +5,15 @@ module.exports = {
     EMAIL_PLUGIN: "EmailPlugin",
     AUDIT_PLUGIN: "AuditPlugin",
     USER_LOGGER: "UserLoggerPlugin",
+    REWARD_EXCHANGE_PLUGIN: "RewardExchangePlugin",
+    PAYMENT_PLUGIN: "PaymentPlugin",
     ROLES: {
         "ADMIN": "sysadmin",
         "MARKETING": "marketing",
         "USER": "user",
         "VALIDATED_USER": "validated_user"
     },
+    APP_CURRENCY: "chf",
     CONTROLLER_ROLES: {
         "HOLDER": "holder",
         "OWNER": "owner"
