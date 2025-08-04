@@ -1,7 +1,9 @@
 const process = require("process");
-const {generateWalletKey, getLoginStrategy} = require("../utils/pluginUtils");
-const {AUTH_TYPES} = require("../constants/authConstants");
+const { generateWalletKey, getLoginStrategy } = require("../utils/pluginUtils");
+const { AUTH_TYPES } = require("../constants/authConstants");
 const constants = require("../utils/constants.js");
+const MINT_AMOUNT = 1000000000;
+const FOUNDER_PERCENTAGE = 10;
 
 async function CreditManager() {
     let self = {};
@@ -85,12 +87,12 @@ async function CreditManager() {
     try {
         // TODO: OutfitinityGift specific initialization, move specific logic to a separate module
         if (!await persistence.hasUserLoginStatus(process.env.SYSADMIN_EMAIL)) {
-            await mint(process.env.SYSTEM_MINT_AMOUNT, process.env.FOUNDER_PERCENTAGE);
+            await mint(MINT_AMOUNT, FOUNDER_PERCENTAGE);
         }
         if (await persistence.hasUserLoginStatus(process.env.SYSADMIN_EMAIL)) {
             let userStatus = await persistence.getUserLoginStatus(process.env.SYSADMIN_EMAIL);
             if (userStatus.role !== constants.ROLES.ADMIN) {
-                await persistence.updateUserLoginStatus(process.env.SYSADMIN_EMAIL, {role: constants.ROLES.ADMIN});
+                await persistence.updateUserLoginStatus(process.env.SYSADMIN_EMAIL, { role: constants.ROLES.ADMIN });
             }
         }
     } catch (error) {
@@ -123,7 +125,7 @@ async function CreditManager() {
     self.getTotalBalance = async function (id) {
         const balance = await self.balance(id);
         const lockedBalance = await self.lockedBalance(id);
-        return {balance, lockedBalance};
+        return { balance, lockedBalance };
     }
 
     self.balance = async function (id) {
