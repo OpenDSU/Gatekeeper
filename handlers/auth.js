@@ -46,7 +46,7 @@ const sendCodeByEmail = async function (req, res) {
             let responseMessage = {status: STATUS.SUCCESS};
 
             // Include code in response only for development or localhost
-            if (process.env.NODE_ENV === 'development' || req.headers.origin === "http://localhost:8080") {
+            if (process.env.NODE_ENV === 'development' || req.headers.origin === "http://localhost:8080" || process.env.LOGIN_MODE === 'direct') {
                 responseMessage.code = result.code;
             }
 
@@ -136,7 +136,7 @@ const generatePasskeySetupOptions = async (req, res) => {
         const publicKeyCredentialCreationOptions = {
             challenge: challenge.toString('base64url'),
             rp: {
-                name: process.env.RP_NAME || "Outfinity Gift",
+                name: process.env.RP_NAME || "MemeHit",
                 id: process.env.RP_ID,
             },
             user: {
