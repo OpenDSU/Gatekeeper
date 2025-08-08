@@ -27,8 +27,20 @@ async function authenticationMiddleware(req, res, next) {
         }
     }
     if (!req.url.includes("/proxy/restart/")) {
-        let publicMethods = await fetch(`${baseURL}/proxy/getPublicMethods/${parsedBody.serverlessId}/${parsedBody.pluginName}`);
-        let publicMethodsData = await publicMethods.json();
+        const pmUrl = `${baseURL}/proxy/getPublicMethods/${parsedBody.serverlessId}/${parsedBody.pluginName}`;
+        console.log(`[Gatekeeper] GET ${pmUrl}`);
+        const publicMethods = await fetch(pmUrl);
+        const ct = publicMethods.headers.get('Content-Type') || '';
+        console.log(`[Gatekeeper] getPublicMethods status=${publicMethods.status} content-type=${ct}`);
+        const bodyText = await publicMethods.text();
+        console.log(`[Gatekeeper] getPublicMethods body(<=200)=`, bodyText.slice(0, 200));
+        let publicMethodsData;
+        try {
+            publicMethodsData = JSON.parse(bodyText);
+        } catch (e) {
+            console.error(`[Gatekeeper] Failed to parse getPublicMethods JSON`, e);
+            throw e;
+        }
         if (publicMethodsData.result.includes(parsedBody.name)) {
             return next();
         }
