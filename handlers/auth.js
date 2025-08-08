@@ -301,7 +301,14 @@ const getUserInfo = async (req, res) => {
         }
         email = decodeURIComponent(email);
         utils.validateEmail(email);
-
+        console.log("DEBUG: email", email);
+        console.log("DEBUG: req.email", req.email);
+        console.log("DEBUG: req.userId", req.userId);
+        console.log("DEBUG: req.sessionId", req.sessionId);
+        console.log("DEBUG: req.spaceId", req.spaceId);
+        console.log("DEBUG: req.spaceName", req.spaceName);
+        console.log("DEBUG: req.spaceType", req.spaceType);
+        console.log("DEBUG: req.spaceStatus", req.spaceStatus);
         let client = await initAPIClient(req, constants.USER_PLUGIN);
         let result = await client.getUserInfo(email);
         res.writeHead(200, {'Content-Type': 'application/json'});

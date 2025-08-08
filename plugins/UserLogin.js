@@ -542,16 +542,18 @@ async function UserLogin() {
     }
 
     self.getUserInfo = async function (email) {
+        console.log("DEBUG: getUserInfo", email);
         let userExists = await persistence.hasUserLoginStatus(email);
+        console.log("DEBUG: userExists", userExists);
         if (!userExists) {
             return {status: STATUS.FAILED, reason: ERROR_REASONS.USER_NOT_EXISTS};
         }
         let user = await persistence.getUserLoginStatus(email);
-
+        console.log("DEBUG: user", user);
         if (!user.authTypes) {
             user.authTypes = user.activeAuthType ? [user.activeAuthType] : [AUTH_TYPES.EMAIL];
         }
-
+        console.log("DEBUG: user.authTypes", user.authTypes);
         const userInfoPayload = {
             ...(user.userInfo || {}),
             email: user.email,
