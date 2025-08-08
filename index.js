@@ -12,12 +12,12 @@ const pendingVisitors = new Map(); // Track pending visitor IDs by IP/session
 
 function newVisitorMiddleware(req, res, next) {
     let cookies = getCookies(req);
-    
+
     // Check if visitor cookie already exists
     if (!cookies['visitorId']) {
         // Create a unique key for this visitor (using IP and user-agent as fallback)
         const visitorKey = req.ip || req.connection.remoteAddress || 'unknown';
-        
+
         // Check if we're already processing this visitor
         if (pendingVisitors.has(visitorKey)) {
             // Use the existing visitor ID that's being processed
@@ -26,23 +26,23 @@ function newVisitorMiddleware(req, res, next) {
         } else {
             // Generate a new visitor ID
             const visitorId = crypto.randomBytes(32).toString("base64");
-            
+
             // Store it temporarily to prevent duplicates
             pendingVisitors.set(visitorKey, visitorId);
-            
+
             // Set the cookie (expires in 1 year)
             res.setHeader('Set-Cookie', `visitorId=${visitorId}; Max-Age=${365 * 24 * 60 * 60}; Path=/; HttpOnly; SameSite=Strict`);
-            
+
             // Log new visitor for monitoring
             console.log("NEW_VISITOR", visitorId);
-            
+
             // Clean up after a short delay to prevent memory leaks
             setTimeout(() => {
                 pendingVisitors.delete(visitorKey);
             }, 5000);
         }
     }
-    
+
     next();
 }
 
@@ -79,10 +79,17 @@ module.exports = async function (server) {
 
     server.use(`${AUTH_API_PREFIX}/*`, (req, res, next) => {
         let cookies = getCookies(req);
+        console.log("DEBUG: Preparing to set keys on request object");
+        console.log("DEBUG: cookies", cookies);
         req.sessionId = cookies['sessionId'];
         req.userId = cookies['userId'];
         req.walletKey = cookies['walletKey'];
         req.email = cookies['email'] ? decodeURIComponent(cookies['email']) : undefined;
+        console.log("DEBUG: keys set on request object");
+        console.log("DEBUG: req.sessionId", req.sessionId);
+        console.log("DEBUG: req.userId", req.userId);
+        console.log("DEBUG: req.walletKey", req.walletKey);
+        console.log("DEBUG: req.email", req.email);
         next();
     });
 
