@@ -3,3 +3,14 @@ package-lock.json
 /Persisto/
 /plugins/CreditManager/
 /.idea/
+
+# Agent skills linked from the workspace skills hub (DocumentationSkills); not versioned here
+/.agents/skills/unslop
+/.agents/skills/web-design
+/.claude
+/.agents/skills/achilles-specs
+/.agents/skills/article-build
+/.agents/skills/detect-main-behaviors
+/.agents/skills/gamp-specs
+/.agents/skills/node-coding-style
+/.agents/skills/review-specs
