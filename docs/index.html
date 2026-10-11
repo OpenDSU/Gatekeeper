@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gatekeeper Documentation</title><link rel="stylesheet" href="styles.css"><script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; mermaid.initialize({startOnLoad:true,theme:'neutral'});</script></head>
+<body>
+<div data-include="partials/header.html"></div>
+<main class="page"><article class="page__panel content">
+<h1>Gatekeeper Documentation</h1>
+<p>Gatekeeper adds account login, sessions, and plugin access checks to an OpenDSU-compatible server.</p>
+<h2>Documentation Map</h2>
+<div class="table-wrap"><table class="documentation-map"><thead><tr><th scope="col">Guide</th><th scope="col">Reference</th></tr></thead><tbody><tr><td><a href="index.html">Overview</a><p>Gatekeeper adds account login, sessions, and plugin access checks to an OpenDSU-compatible server.</p></td><td><a href="wiki.html">Wiki</a><p>Project terminology and component responsibilities.</p></td></tr><tr><td><a href="operations.html">Operations</a><p>Integration, configuration, and verification paths.</p></td><td><a href="specsLoader.html?spec=matrix.md">Specifications</a><p>Requirements, boundaries, and main behavior.</p></td></tr></tbody></table></div>
+<p>Begin with Overview, follow the practical guidance, then use Wiki for project terms and Specifications for the detailed contracts.</p>
+<h2>Server integration</h2><p>The exported asynchronous initializer in <code>index.js</code> receives a server object. It registers authentication routes beneath <code>AUTH_API_PREFIX</code>, attaches middleware to <code>/proxy/*</code>, and creates the <a href="wiki.html#definition-serverless-api">serverless API</a> used by its plugins. Gatekeeper is a server extension; this package has no standalone start command.</p>
+<h2>Login and sessions</h2><p><a href="wiki.html#definition-userlogin">UserLogin</a> coordinates email codes, passkeys, and TOTP with persisted account records. Successful authentication returns session information to HTTP handlers, which set authentication cookies. The proxy middleware checks whether a session belongs to a blocked user and validates sessions before allowing protected plugin calls.</p>
+<p><a href="specsLoader.html?spec=DS001-coding-style.md">Coding style</a> defines source layout and the verification commands. <a href="wiki.html">Wiki</a> contains the canonical project terms.</p>
+</article></main>
+<div data-include="partials/footer.html"></div><script src="partials-loader.js"></script>
+</body></html>

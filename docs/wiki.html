@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Gatekeeper Documentation</title><link rel="stylesheet" href="styles.css"><script type="module">import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'; mermaid.initialize({startOnLoad:true,theme:'neutral'});</script></head>
+<body>
+<div data-include="partials/header.html"></div>
+<main class="page"><article class="page__panel content">
+<p class="breadcrumb"><a href="index.html">Overview</a></p>
+<h1>Wiki</h1>
+<p>These terms describe the project's own components and contracts.</p>
+<section id="definition-userlogin"><h2>UserLogin</h2><p>UserLogin is the account plugin used by the HTTP handlers and proxy authentication middleware. It coordinates login strategies, persistence, account creation, session validation, and logout. Email code, passkey, and TOTP strategies implement distinct credential checks; session and registration caches are process-local and do not establish a shared multi-process cache.</p></section>
+<section id="definition-serverless-api"><h2>Serverless API</h2><p>The host server creates and registers a plugin API under SERVERLESS_ID. Gatekeeper handlers use an OpenDSU serverless client to call plugins with the current user and session context. Gatekeeper relies on that host contract rather than opening its own standalone listener.</p></section>
+<section id="definition-session"><h2>Session</h2><p>A successful login creates a session identifier associated with a persisted account. Handlers expose authentication cookies, and protected proxy calls use the session to retrieve identity. UserLogin checks its local cache and persistence and removes the session during logout; browser headers alone are not a substitute for session validation.</p></section>
+</article></main>
+<div data-include="partials/footer.html"></div><script src="partials-loader.js"></script>
+</body></html>
