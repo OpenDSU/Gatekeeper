@@ -14,3 +14,4 @@ package-lock.json
 /.agents/skills/gamp-specs
 /.agents/skills/node-coding-style
 /.agents/skills/review-specs
+.DS_Store
